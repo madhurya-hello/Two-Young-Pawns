@@ -1,9 +1,12 @@
 import { useState } from "react";
 import Tiles from "../components/Tiles";
+import ChessBoard from "../components/ChessBoard"; 
 
 const Home = () => {
   const [showModal, setShowModal] = useState(true);
   const [isExiting, setIsExiting] = useState(false);
+  
+  const [moveHistory, setMoveHistory] = useState<string[]>([]);
 
   const handleClose = () => {
     setIsExiting(true);
@@ -13,18 +16,16 @@ const Home = () => {
     }, 300);
   };
 
-  // 1. Screen-wide background to center the content
   const screenContainerStyle: React.CSSProperties = {
     width: "100vw",
     height: "100vh",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#f0f2f5", // Soft background color
+    backgroundColor: "#f0f2f5",
     color: "#121212",
   };
 
-  // 2. The Parent Div (not full height/width, centered)
   const appContainerStyle: React.CSSProperties = {
     display: "flex",
     width: "92%",
@@ -37,7 +38,6 @@ const Home = () => {
     border: "1px solid #e0e0e0",
   };
 
-  // 3. Left Section (30% of parent)
   const leftSectionStyle: React.CSSProperties = {
     width: "30%",
     height: "100%",
@@ -49,7 +49,6 @@ const Home = () => {
     gap: "24px",
   };
 
-  // 4. Right Section (70% of parent)
   const rightSectionStyle: React.CSSProperties = {
     width: "70%",
     height: "100%",
@@ -62,7 +61,7 @@ const Home = () => {
 
   const boardAreaStyle: React.CSSProperties = {
     width: "100%",
-    maxWidth: "75vh", // Controls the square board size relative to parent height
+    maxWidth: "75vh",
     display: "flex",
     flexDirection: "column",
     gap: "12px",
@@ -75,46 +74,45 @@ const Home = () => {
     padding: "4px 0",
   };
 
-  const boardPlaceholderStyle: React.CSSProperties = {
-    width: "100%",
-    aspectRatio: "1 / 1",
-    backgroundColor: "#2f353a", // Classic dark square color
-    border: "1px solid #121212",
-    borderRadius: "4px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "1.4rem",
-    fontWeight: "bold",
-    color: "#ffffff",
-    opacity: 0.8,
-  };
-
   const buttonStyle: React.CSSProperties = {
     padding: "12px 24px",
     cursor: "pointer",
     border: "1px solid #121212",
     background: "none",
     fontWeight: "700",
-    marginTop: "auto", // Keeps the button at the bottom of the analysis area
+    marginTop: "auto",
     borderRadius: "8px",
     fontSize: "0.9rem",
     textTransform: "uppercase",
     letterSpacing: "0.5px",
   };
 
+  const boardContainerStyle: React.CSSProperties = {
+    width: "100%",
+    aspectRatio: "1 / 1",
+    border: "1px solid #12121200",
+    borderRadius: "4px",
+    overflow: "hidden",
+  };
+
   return (
     <div style={screenContainerStyle}>
       <div style={appContainerStyle}>
+
         {/* Left Side: Analysis Area */}
         <div style={leftSectionStyle}>
           <div>
-            <h2 style={{ margin: "0 0 12px 0", fontSize: "1.6rem" }}>Analysis</h2>
-            <div style={{ opacity: 0.6, fontSize: "0.95rem", lineHeight: "1.6" }}>
-              Engine evaluations and move history will appear here during your match.
+            <h2 style={{ margin: "0 0 12px 0", fontSize: "1.6rem" }}>
+              Analysis
+            </h2>
+            <div
+              style={{ opacity: 0.6, fontSize: "0.95rem", lineHeight: "1.6" }}
+            >
+              Engine evaluations and move history will appear here during your
+              match.
             </div>
           </div>
-          
+
           {!showModal && (
             <button onClick={() => setShowModal(true)} style={buttonStyle}>
               Change Time Control
@@ -128,26 +126,56 @@ const Home = () => {
             {/* Top Player Info (Opponent) */}
             <div style={playerRowStyle}>
               <div>
-                <span style={{ fontWeight: "600", fontSize: "1.1rem" }}>Magnus Carlsen</span>
-                <span style={{ marginLeft: "8px", opacity: 0.5, fontSize: "0.9rem" }}>(2830)</span>
+                <span style={{ fontWeight: "600", fontSize: "1.1rem" }}>
+                  Magnus Carlsen
+                </span>
+                <span
+                  style={{
+                    marginLeft: "8px",
+                    opacity: 0.5,
+                    fontSize: "0.9rem",
+                  }}
+                >
+                  (2830)
+                </span>
               </div>
-              <div style={{ fontFamily: "monospace", fontWeight: "700", fontSize: "1.3rem" }}>
+              <div
+                style={{
+                  fontFamily: "monospace",
+                  fontWeight: "700",
+                  fontSize: "1.3rem",
+                }}
+              >
                 00:10:00
               </div>
             </div>
-
-            {/* Square Chess Board */}
-            <div style={boardPlaceholderStyle}>
-              BOARD COMPONENT
+            {/* Chess Component Container */}
+            <div style={boardContainerStyle}>
+              <ChessBoard onMove={setMoveHistory} />
             </div>
-
             {/* Bottom Player Info (User) */}
             <div style={playerRowStyle}>
               <div>
-                <span style={{ fontWeight: "600", fontSize: "1.1rem" }}>You</span>
-                <span style={{ marginLeft: "8px", opacity: 0.5, fontSize: "0.9rem" }}>(1500)</span>
+                <span style={{ fontWeight: "600", fontSize: "1.1rem" }}>
+                  You
+                </span>
+                <span
+                  style={{
+                    marginLeft: "8px",
+                    opacity: 0.5,
+                    fontSize: "0.9rem",
+                  }}
+                >
+                  (1500)
+                </span>
               </div>
-              <div style={{ fontFamily: "monospace", fontWeight: "700", fontSize: "1.3rem" }}>
+              <div
+                style={{
+                  fontFamily: "monospace",
+                  fontWeight: "700",
+                  fontSize: "1.3rem",
+                }}
+              >
                 00:10:00
               </div>
             </div>
@@ -155,7 +183,6 @@ const Home = () => {
         </div>
       </div>
 
-      {/* Modal logic for time control selection */}
       {showModal && <Tiles onClose={handleClose} isExiting={isExiting} />}
     </div>
   );
