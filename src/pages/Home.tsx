@@ -1,12 +1,13 @@
 import { useState } from "react";
 import Tiles from "../components/Tiles";
-import ChessBoard from "../components/ChessBoard"; 
+import ChessBoard from "../components/ChessBoard";
+import RightSideBar from "../components/RightSideBar";
 
 const Home = () => {
   const [showModal, setShowModal] = useState(true);
   const [isExiting, setIsExiting] = useState(false);
-  
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
+  const [currentViewIndex, setCurrentViewIndex] = useState(0);
 
   const handleClose = () => {
     setIsExiting(true);
@@ -14,6 +15,11 @@ const Home = () => {
       setShowModal(false);
       setIsExiting(false);
     }, 300);
+  };
+
+  const handleMove = (history: string[]) => {
+    setMoveHistory(history);
+    setCurrentViewIndex(history.length);
   };
 
   const screenContainerStyle: React.CSSProperties = {
@@ -28,8 +34,8 @@ const Home = () => {
 
   const appContainerStyle: React.CSSProperties = {
     display: "flex",
-    width: "92%",
-    maxWidth: "1400px",
+    width: "96%",
+    maxWidth: "1700px",
     height: "93%",
     backgroundColor: "#ffffff",
     borderRadius: "16px",
@@ -39,7 +45,7 @@ const Home = () => {
   };
 
   const leftSectionStyle: React.CSSProperties = {
-    width: "30%",
+    width: "25%",
     height: "100%",
     backgroundColor: "#f9f9f9",
     borderRight: "1px solid #eeeeee",
@@ -47,21 +53,23 @@ const Home = () => {
     display: "flex",
     flexDirection: "column",
     gap: "24px",
+    boxSizing: "border-box",
   };
 
   const rightSectionStyle: React.CSSProperties = {
-    width: "70%",
+    width: "50%",
     height: "100%",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
     padding: "40px",
+    boxSizing: "border-box",
   };
 
   const boardAreaStyle: React.CSSProperties = {
     width: "100%",
-    maxWidth: "75vh",
+    maxWidth: "77vh",
     display: "flex",
     flexDirection: "column",
     gap: "12px",
@@ -74,23 +82,9 @@ const Home = () => {
     padding: "4px 0",
   };
 
-  const buttonStyle: React.CSSProperties = {
-    padding: "12px 24px",
-    cursor: "pointer",
-    border: "1px solid #121212",
-    background: "none",
-    fontWeight: "700",
-    marginTop: "auto",
-    borderRadius: "8px",
-    fontSize: "0.9rem",
-    textTransform: "uppercase",
-    letterSpacing: "0.5px",
-  };
-
   const boardContainerStyle: React.CSSProperties = {
     width: "100%",
     aspectRatio: "1 / 1",
-    border: "1px solid #12121200",
     borderRadius: "4px",
     overflow: "hidden",
   };
@@ -98,8 +92,7 @@ const Home = () => {
   return (
     <div style={screenContainerStyle}>
       <div style={appContainerStyle}>
-
-        {/* Left Side: Analysis Area */}
+        {/* Analysis Area */}
         <div style={leftSectionStyle}>
           <div>
             <h2 style={{ margin: "0 0 12px 0", fontSize: "1.6rem" }}>
@@ -112,18 +105,11 @@ const Home = () => {
               match.
             </div>
           </div>
-
-          {!showModal && (
-            <button onClick={() => setShowModal(true)} style={buttonStyle}>
-              Change Time Control
-            </button>
-          )}
         </div>
 
-        {/* Right Side: Board Area */}
+        {/* Center: Board Area */}
         <div style={rightSectionStyle}>
           <div style={boardAreaStyle}>
-            {/* Top Player Info (Opponent) */}
             <div style={playerRowStyle}>
               <div>
                 <span style={{ fontWeight: "600", fontSize: "1.1rem" }}>
@@ -149,11 +135,14 @@ const Home = () => {
                 00:10:00
               </div>
             </div>
-            {/* Chess Component Container */}
+
             <div style={boardContainerStyle}>
-              <ChessBoard onMove={setMoveHistory} />
+              <ChessBoard
+                onMove={handleMove}
+                currentViewIndex={currentViewIndex}
+              />
             </div>
-            {/* Bottom Player Info (User) */}
+
             <div style={playerRowStyle}>
               <div>
                 <span style={{ fontWeight: "600", fontSize: "1.1rem" }}>
@@ -181,6 +170,14 @@ const Home = () => {
             </div>
           </div>
         </div>
+
+        {/* Controls and History */}
+        <RightSideBar
+          moveHistory={moveHistory}
+          currentViewIndex={currentViewIndex}
+          onJumpToMove={setCurrentViewIndex}
+          onOpenModal={() => setShowModal(true)}
+        />
       </div>
 
       {showModal && <Tiles onClose={handleClose} isExiting={isExiting} />}
