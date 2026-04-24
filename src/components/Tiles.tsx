@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 interface TileData {
   time: string;
@@ -34,13 +34,12 @@ const Tile = ({
     setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
   };
 
-  // Logic to create separating borders without doubling lines
   const isLastColumn = (index + 1) % 3 === 0;
   const isLastRow = index >= 9;
 
   const tileStyle: React.CSSProperties = {
     position: "relative",
-    aspectRatio: "1 / 1", // Ensures square shape
+    aspectRatio: "1 / 1",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
@@ -76,12 +75,12 @@ const Tile = ({
       onMouseLeave={() => setIsHovered(false)}
     >
       <div style={gradientOverlay} />
-      <div style={{ fontSize: "1.4rem", fontWeight: "600", zIndex: 1 }}>
+      <div style={{ fontSize: "2.2rem", fontWeight: "600", zIndex: 1 }}>
         {control.time}
       </div>
       <div
         style={{
-          fontSize: "0.8rem",
+          fontSize: "1.1rem",
           opacity: 0.5,
           textTransform: "uppercase",
           letterSpacing: "1px",
@@ -96,10 +95,17 @@ const Tile = ({
 
 interface TilesProps {
   onClose: () => void;
-  isExiting: boolean; // Add this line
+  isExiting: boolean;
+  onSelect: (control: TileData) => void;
 }
 
-const Tiles: React.FC<TilesProps> = ({ onClose, isExiting }) => {
+const Tiles: React.FC<TilesProps> = ({ onClose, isExiting, onSelect }) => {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const overlayStyle: React.CSSProperties = {
     position: "fixed",
     top: 0,
@@ -112,29 +118,31 @@ const Tiles: React.FC<TilesProps> = ({ onClose, isExiting }) => {
     justifyContent: "center",
     alignItems: "center",
     zIndex: 1000,
-    // --- Add these three lines ---
-    opacity: isExiting ? 0 : 1,
+    opacity: isMounted && !isExiting ? 1 : 0,
     transition: "opacity 300ms ease-in-out",
     pointerEvents: isExiting ? "none" : "auto",
   };
 
   const gridStyle: React.CSSProperties = {
     display: "grid",
-    gridTemplateColumns: "repeat(3, 160px)",
+    gridTemplateColumns: "repeat(3, 220px)",
     gap: 0,
     backgroundColor: "rgba(255, 255, 255, 0.03)",
     border: "1px solid rgba(255, 255, 255, 0.15)",
-    // --- Add these two lines ---
-    transform: isExiting ? "scale(0.95)" : "scale(1)",
+    transform: isMounted && !isExiting ? "scale(1)" : "scale(0.95)",
     transition: "transform 300ms ease-in-out",
   };
 
   return (
     <div style={overlayStyle} onClick={onClose}>
-      {/* stopPropagation prevents modal closing when clicking inside the grid */}
       <div style={gridStyle} onClick={(e) => e.stopPropagation()}>
         {timeControls.map((control, index) => (
-          <Tile key={index} index={index} control={control} onClick={onClose} />
+          <Tile
+            key={index}
+            index={index}
+            control={control}
+            onClick={() => onSelect(control)}
+          />
         ))}
       </div>
     </div>

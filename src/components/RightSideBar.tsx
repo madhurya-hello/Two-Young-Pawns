@@ -2,9 +2,12 @@ import React, { useState } from "react";
 
 interface RightSideBarProps {
   moveHistory: string[];
-  currentViewIndex: number; 
+  currentViewIndex: number;
   onJumpToMove: (index: number) => void;
   onOpenModal: () => void;
+  onOpenOpponentModal: () => void;
+  selectedOpponent: { name: string; image: string; rating: number } | null;
+  selectedTime: { time: string; type: string } | null;
 }
 
 const RightSideBar: React.FC<RightSideBarProps> = ({
@@ -12,6 +15,9 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
   currentViewIndex,
   onJumpToMove,
   onOpenModal,
+  onOpenOpponentModal,
+  selectedOpponent,
+  selectedTime,
 }) => {
   const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -151,6 +157,7 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
       <div style={buttonGroupStyle}>
         <button
           style={{ ...getButtonStyle("opponent"), flex: 1 }}
+          onClick={onOpenOpponentModal}
           onMouseEnter={() => setHoveredBtn("opponent")}
           onMouseLeave={() => setHoveredBtn(null)}
         >
@@ -167,7 +174,11 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
               d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
             />
           </svg>
-          Opponent
+
+          {/* Show player name and rating if selected, otherwise show "Opponent" */}
+          {selectedOpponent
+            ? `${selectedOpponent.name} (${selectedOpponent.rating})`
+            : "Opponent"}
         </button>
 
         <button
@@ -189,7 +200,9 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
               d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
             />
           </svg>
-          Time
+          {selectedTime
+            ? `${selectedTime.type} (${selectedTime.time})`
+            : "Time"}
         </button>
       </div>
 

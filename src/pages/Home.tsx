@@ -2,12 +2,24 @@ import { useState } from "react";
 import Tiles from "../components/Tiles";
 import ChessBoard from "../components/ChessBoard";
 import RightSideBar from "../components/RightSideBar";
+import OpponentModal from "../components/OpponentModal";
 
 const Home = () => {
   const [showModal, setShowModal] = useState(true);
   const [isExiting, setIsExiting] = useState(false);
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
   const [currentViewIndex, setCurrentViewIndex] = useState(0);
+  const [showOpponentModal, setShowOpponentModal] = useState(false);
+  const [isOpponentExiting, setIsOpponentExiting] = useState(false);
+  const [selectedOpponent, setSelectedOpponent] = useState<{
+    name: string;
+    image: string;
+    rating: number;
+  } | null>(null);
+  const [selectedTime, setSelectedTime] = useState<{
+    time: string;
+    type: string;
+  } | null>(null);
 
   const handleClose = () => {
     setIsExiting(true);
@@ -20,6 +32,28 @@ const Home = () => {
   const handleMove = (history: string[]) => {
     setMoveHistory(history);
     setCurrentViewIndex(history.length);
+  };
+
+  const handleCloseOpponent = () => {
+    setIsOpponentExiting(true);
+    setTimeout(() => {
+      setShowOpponentModal(false);
+      setIsOpponentExiting(false);
+    }, 300);
+  };
+
+  const handleSelectOpponent = (player: {
+    name: string;
+    image: string;
+    rating: number;
+  }) => {
+    setSelectedOpponent(player);
+    handleCloseOpponent();
+  };
+
+  const handleSelectTime = (control: { time: string; type: string }) => {
+    setSelectedTime(control);
+    handleClose();
   };
 
   const screenContainerStyle: React.CSSProperties = {
@@ -177,10 +211,27 @@ const Home = () => {
           currentViewIndex={currentViewIndex}
           onJumpToMove={setCurrentViewIndex}
           onOpenModal={() => setShowModal(true)}
+          onOpenOpponentModal={() => setShowOpponentModal(true)}
+          selectedOpponent={selectedOpponent}
+          selectedTime={selectedTime}
         />
       </div>
 
-      {showModal && <Tiles onClose={handleClose} isExiting={isExiting} />}
+      {showModal && (
+        <Tiles
+          onClose={handleClose}
+          isExiting={isExiting}
+          onSelect={handleSelectTime}
+        />
+      )}
+
+      {showOpponentModal && (
+        <OpponentModal
+          onClose={handleCloseOpponent}
+          isExiting={isOpponentExiting}
+          onSelect={handleSelectOpponent}
+        />
+      )}
     </div>
   );
 };
