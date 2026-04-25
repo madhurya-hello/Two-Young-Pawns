@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Tiles from "../components/Tiles";
 import ChessBoard from "../components/ChessBoard";
 import RightSideBar from "../components/RightSideBar";
@@ -20,6 +20,57 @@ const Home = () => {
     time: string;
     type: string;
   } | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [whiteTime, setWhiteTime] = useState(30);
+  const [blackTime, setBlackTime] = useState(30);
+  const [increment, setIncrement] = useState(0);
+  const prevHistoryLengthRef = useRef(0);
+
+  useEffect(() => {
+    // If game resets, reset the tracker
+    if (moveHistory.length === 0) {
+      prevHistoryLengthRef.current = 0;
+      return;
+    }
+
+    // If a new move was made, apply the increment
+    if (moveHistory.length > prevHistoryLengthRef.current) {
+      if (moveHistory.length % 2 === 1) {
+        setWhiteTime((prev) => prev + increment);
+      } else {
+        setBlackTime((prev) => prev + increment);
+      }
+      prevHistoryLengthRef.current = moveHistory.length;
+    }
+  }, [moveHistory.length, increment]);
+
+  useEffect(() => {
+    let interval: number;
+
+    if (isPlaying) {
+      interval = window.setInterval(() => {
+        const isWhiteTurn = moveHistory.length % 2 === 0;
+        if (isWhiteTurn) {
+          setWhiteTime((prev) => (prev > 0 ? prev - 1 : 0));
+        } else {
+          setBlackTime((prev) => (prev > 0 ? prev - 1 : 0));
+        }
+      }, 1000);
+    }
+
+    return () => window.clearInterval(interval);
+  }, [isPlaying, moveHistory.length]);
+
+  const formatTime = (seconds: number) => {
+    const h = Math.floor(seconds / 3600)
+      .toString()
+      .padStart(2, "0");
+    const m = Math.floor((seconds % 3600) / 60)
+      .toString()
+      .padStart(2, "0");
+    const s = (seconds % 60).toString().padStart(2, "0");
+    return `${h}:${m}:${s}`;
+  };
 
   const handleClose = () => {
     setIsExiting(true);
@@ -32,6 +83,7 @@ const Home = () => {
   const handleMove = (history: string[]) => {
     setMoveHistory(history);
     setCurrentViewIndex(history.length);
+    if (!isPlaying) setIsPlaying(true);
   };
 
   const handleCloseOpponent = () => {
@@ -53,6 +105,29 @@ const Home = () => {
 
   const handleSelectTime = (control: { time: string; type: string }) => {
     setSelectedTime(control);
+
+    let totalSeconds = 0;
+    let incSeconds = 0;
+    const timeStr = control.time.toLowerCase().trim();
+
+    if (timeStr.includes("+")) {
+      const [mins, inc] = timeStr.split("+");
+      totalSeconds = parseInt(mins, 10) * 60;
+      incSeconds = parseInt(inc || "0", 10);
+    } else if (timeStr.includes(":")) {
+      const [m, s] = timeStr.split(":");
+      totalSeconds = parseInt(m || "0", 10) * 60 + parseInt(s || "0", 10);
+    } else if (timeStr.includes("sec")) {
+      totalSeconds = parseInt(timeStr, 10);
+    } else {
+      totalSeconds = parseInt(timeStr, 10) * 60;
+    }
+
+    setIsPlaying(false);
+    setWhiteTime(totalSeconds);
+    setBlackTime(totalSeconds);
+    setIncrement(incSeconds);
+
     handleClose();
   };
 
@@ -164,9 +239,10 @@ const Home = () => {
                   fontFamily: "monospace",
                   fontWeight: "700",
                   fontSize: "1.3rem",
+                  color: blackTime < 20 ? "#ef4444" : "inherit",
                 }}
               >
-                00:10:00
+                {formatTime(blackTime)}
               </div>
             </div>
 
@@ -197,9 +273,10 @@ const Home = () => {
                   fontFamily: "monospace",
                   fontWeight: "700",
                   fontSize: "1.3rem",
+                  color: whiteTime < 20 ? "#ef4444" : "inherit",
                 }}
               >
-                00:10:00
+                {formatTime(whiteTime)}
               </div>
             </div>
           </div>
@@ -214,6 +291,8 @@ const Home = () => {
           onOpenOpponentModal={() => setShowOpponentModal(true)}
           selectedOpponent={selectedOpponent}
           selectedTime={selectedTime}
+          isPlaying={isPlaying}
+          onTogglePlay={() => setIsPlaying(!isPlaying)}
         />
       </div>
 

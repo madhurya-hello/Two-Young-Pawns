@@ -8,6 +8,8 @@ interface RightSideBarProps {
   onOpenOpponentModal: () => void;
   selectedOpponent: { name: string; image: string; rating: number } | null;
   selectedTime: { time: string; type: string } | null;
+  isPlaying: boolean;
+  onTogglePlay: () => void;
 }
 
 const RightSideBar: React.FC<RightSideBarProps> = ({
@@ -18,9 +20,10 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
   onOpenOpponentModal,
   selectedOpponent,
   selectedTime,
+  isPlaying,
+  onTogglePlay,
 }) => {
   const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
 
   const sidebarStyle: React.CSSProperties = {
@@ -209,6 +212,25 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
       {/* Row 3: New and Continue (Side by Side) */}
       <div style={buttonGroupStyle}>
         <button
+          style={{ ...getButtonStyle("cont"), flex: 1 }}
+          onClick={onTogglePlay}
+          onMouseEnter={() => setHoveredBtn("cont")}
+          onMouseLeave={() => setHoveredBtn(null)}
+        >
+          {isPlaying ? (
+            /* Pause Icon */
+            <svg style={iconStyle} fill="currentColor" viewBox="0 0 24 24">
+              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+            </svg>
+          ) : (
+            /* Play Icon */
+            <svg style={iconStyle} fill="currentColor" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          )}
+          {isPlaying ? "Pause" : "Play"}
+        </button>
+        <button
           style={{ ...getButtonStyle("new"), flex: 1 }}
           onMouseEnter={() => setHoveredBtn("new")}
           onMouseLeave={() => setHoveredBtn(null)}
@@ -227,25 +249,6 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
             />
           </svg>
           New
-        </button>
-        <button
-          style={{ ...getButtonStyle("cont"), flex: 1 }}
-          onClick={() => setIsPlaying(!isPlaying)}
-          onMouseEnter={() => setHoveredBtn("cont")}
-          onMouseLeave={() => setHoveredBtn(null)}
-        >
-          {isPlaying ? (
-            /* Pause Icon */
-            <svg style={iconStyle} fill="currentColor" viewBox="0 0 24 24">
-              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-            </svg>
-          ) : (
-            /* Play Icon */
-            <svg style={iconStyle} fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          )}
-          {isPlaying ? "Pause" : "Continue"}
         </button>
       </div>
 
