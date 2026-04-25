@@ -25,6 +25,7 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
 }) => {
   const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
+  const isGameReady = Boolean(selectedOpponent && selectedTime);
 
   const sidebarStyle: React.CSSProperties = {
     width: "25%",
@@ -212,9 +213,15 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
       {/* Row 3: New and Continue (Side by Side) */}
       <div style={buttonGroupStyle}>
         <button
-          style={{ ...getButtonStyle("cont"), flex: 1 }}
+          style={{
+            ...getButtonStyle("cont"),
+            flex: 1,
+            opacity: isGameReady ? 1 : 0.5,
+            cursor: isGameReady ? "pointer" : "not-allowed",
+          }}
+          disabled={!isGameReady}
           onClick={onTogglePlay}
-          onMouseEnter={() => setHoveredBtn("cont")}
+          onMouseEnter={() => isGameReady && setHoveredBtn("cont")}
           onMouseLeave={() => setHoveredBtn(null)}
         >
           {isPlaying ? (
@@ -231,8 +238,14 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
           {isPlaying ? "Pause" : "Play"}
         </button>
         <button
-          style={{ ...getButtonStyle("new"), flex: 1 }}
-          onMouseEnter={() => setHoveredBtn("new")}
+          style={{
+            ...getButtonStyle("new"),
+            flex: 1,
+            opacity: isGameReady ? 1 : 0.5,
+            cursor: isGameReady ? "pointer" : "not-allowed",
+          }}
+          disabled={!isGameReady}
+          onMouseEnter={() => isGameReady && setHoveredBtn("new")}
           onMouseLeave={() => setHoveredBtn(null)}
         >
           <svg

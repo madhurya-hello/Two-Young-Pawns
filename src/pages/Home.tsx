@@ -222,17 +222,19 @@ const Home = () => {
             <div style={playerRowStyle}>
               <div>
                 <span style={{ fontWeight: "600", fontSize: "1.1rem" }}>
-                  Magnus Carlsen
+                  {selectedOpponent ? selectedOpponent.name : "Select Opponent"}
                 </span>
-                <span
-                  style={{
-                    marginLeft: "8px",
-                    opacity: 0.5,
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  (2830)
-                </span>
+                {selectedOpponent && (
+                  <span
+                    style={{
+                      marginLeft: "8px",
+                      opacity: 0.5,
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    ({selectedOpponent.rating})
+                  </span>
+                )}
               </div>
               <div
                 style={{
