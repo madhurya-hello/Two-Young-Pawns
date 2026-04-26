@@ -10,6 +10,9 @@ interface RightSideBarProps {
   selectedTime: { time: string; type: string } | null;
   isPlaying: boolean;
   onTogglePlay: () => void;
+  gameOutcome: "win" | "loss" | null;
+  onReset: () => void;
+  onFlip: () => void;
 }
 
 const RightSideBar: React.FC<RightSideBarProps> = ({
@@ -22,10 +25,14 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
   selectedTime,
   isPlaying,
   onTogglePlay,
+  gameOutcome,
+  onReset,
+  onFlip,
 }) => {
   const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
-  const [hoveredRow, setHoveredRow] = useState<number | null>(null);
+  const [hoveredMove, setHoveredMove] = useState<number | null>(null);
   const isGameReady = Boolean(selectedOpponent && selectedTime);
+  const canFlip = moveHistory.length === 0;
 
   const sidebarStyle: React.CSSProperties = {
     width: "25%",
@@ -225,27 +232,26 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
           onMouseLeave={() => setHoveredBtn(null)}
         >
           {isPlaying ? (
-            /* Pause Icon */
             <svg style={iconStyle} fill="currentColor" viewBox="0 0 24 24">
               <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
             </svg>
           ) : (
-            /* Play Icon */
             <svg style={iconStyle} fill="currentColor" viewBox="0 0 24 24">
               <path d="M8 5v14l11-7z" />
             </svg>
           )}
           {isPlaying ? "Pause" : "Play"}
         </button>
+
         <button
           style={{
             ...getButtonStyle("new"),
             flex: 1,
-            opacity: isGameReady ? 1 : 0.5,
-            cursor: isGameReady ? "pointer" : "not-allowed",
+            opacity: 1,
+            cursor: "pointer",
           }}
-          disabled={!isGameReady}
-          onMouseEnter={() => isGameReady && setHoveredBtn("new")}
+          onClick={onReset}
+          onMouseEnter={() => setHoveredBtn("new")}
           onMouseLeave={() => setHoveredBtn(null)}
         >
           <svg
@@ -262,6 +268,94 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
             />
           </svg>
           New
+        </button>
+      </div>
+
+      {/* Row 4: Flip, Draw, Resign (Side by Side) */}
+      <div style={buttonGroupStyle}>
+        <button
+          style={{
+            ...getButtonStyle("flip"),
+            flex: 1,
+            padding: "8px 4px",
+            gap: "4px",
+            fontSize: "0.75rem",
+            opacity: canFlip ? 1 : 0.5,
+            cursor: canFlip ? "pointer" : "not-allowed",
+          }}
+          disabled={!canFlip}
+          onClick={onFlip}
+          onMouseEnter={() => canFlip && setHoveredBtn("flip")}
+          onMouseLeave={() => setHoveredBtn(null)}
+        >
+          <svg
+            style={iconStyle}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+          Flip
+        </button>
+
+        <button
+          style={{
+            ...getButtonStyle("draw"),
+            flex: 1,
+            padding: "8px 4px",
+            gap: "4px",
+            fontSize: "0.75rem",
+          }}
+          onMouseEnter={() => setHoveredBtn("draw")}
+          onMouseLeave={() => setHoveredBtn(null)}
+        >
+          {/* Using text for ½ as it scales crisply */}
+          <span
+            style={{
+              ...iconStyle,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "1rem",
+              fontWeight: "bold",
+            }}
+          >
+            ½
+          </span>
+          Draw
+        </button>
+
+        <button
+          style={{
+            ...getButtonStyle("resign"),
+            flex: 1,
+            padding: "8px 4px",
+            gap: "4px",
+            fontSize: "0.75rem",
+          }}
+          onMouseEnter={() => setHoveredBtn("resign")}
+          onMouseLeave={() => setHoveredBtn(null)}
+        >
+          <svg
+            style={iconStyle}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"
+            />
+          </svg>
+          Resign
         </button>
       </div>
 
@@ -414,37 +508,76 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
         <div style={scrollAreaStyle}>
           <table style={tableStyle}>
             <tbody>
-              {rows.map((row, index) => (
-                <tr
-                  key={row.moveNo}
-                  onMouseEnter={() => setHoveredRow(row.moveNo)}
-                  onMouseLeave={() => setHoveredRow(null)}
-                  onClick={() => onJumpToMove(index * 2 + 1)}
-                  style={{
-                    backgroundColor:
-                      currentViewIndex === index * 2 + 1
-                        ? "#ebebeb"
-                        : hoveredRow === row.moveNo
-                          ? "#f5f5f5"
-                          : "transparent",
-                    transition: "background-color 0.1s ease",
-                    cursor: "pointer",
-                  }}
-                >
-                  <td
-                    style={{
-                      ...tdStyle,
-                      color: "#aaa",
-                      width: "50px",
-                      fontWeight: "500",
-                    }}
-                  >
-                    {row.moveNo}
-                  </td>
-                  <td style={{ ...tdStyle, fontWeight: "500" }}>{row.white}</td>
-                  <td style={{ ...tdStyle, fontWeight: "500" }}>{row.black}</td>
-                </tr>
-              ))}
+              {rows.map((row, index) => {
+                // Calculate the exact move index for white and black
+                const whiteMoveIndex = index * 2 + 1;
+                const blackMoveIndex = index * 2 + 2;
+                const hasBlackMove = Boolean(row.black);
+
+                return (
+                  <tr key={row.moveNo}>
+                    {/* Move Number Column (Not Interactive) */}
+                    <td
+                      style={{
+                        ...tdStyle,
+                        color: "#aaa",
+                        width: "50px",
+                        fontWeight: "500",
+                      }}
+                    >
+                      {row.moveNo}
+                    </td>
+
+                    {/* White's Move Cell */}
+                    <td
+                      onMouseEnter={() => setHoveredMove(whiteMoveIndex)}
+                      onMouseLeave={() => setHoveredMove(null)}
+                      onClick={() => onJumpToMove(whiteMoveIndex)}
+                      style={{
+                        ...tdStyle,
+                        fontWeight: "500",
+                        cursor: "pointer",
+                        borderRadius: "4px",
+                        backgroundColor:
+                          currentViewIndex === whiteMoveIndex
+                            ? "#f5f5f5"
+                            : hoveredMove === whiteMoveIndex
+                              ? "#f5f5f5"
+                              : "transparent",
+                        transition: "background-color 0.1s ease",
+                      }}
+                    >
+                      {row.white}
+                    </td>
+
+                    {/* Black's Move Cell */}
+                    <td
+                      onMouseEnter={() =>
+                        hasBlackMove && setHoveredMove(blackMoveIndex)
+                      }
+                      onMouseLeave={() => setHoveredMove(null)}
+                      onClick={() =>
+                        hasBlackMove && onJumpToMove(blackMoveIndex)
+                      }
+                      style={{
+                        ...tdStyle,
+                        fontWeight: "500",
+                        cursor: hasBlackMove ? "pointer" : "default",
+                        borderRadius: "4px",
+                        backgroundColor:
+                          hasBlackMove && currentViewIndex === blackMoveIndex
+                            ? "#f5f5f5"
+                            : hoveredMove === blackMoveIndex
+                              ? "#f5f5f5"
+                              : "transparent",
+                        transition: "background-color 0.1s ease",
+                      }}
+                    >
+                      {row.black}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

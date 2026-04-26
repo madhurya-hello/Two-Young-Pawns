@@ -11,21 +11,37 @@ import "chessground/assets/chessground.cburnett.css";
 interface ChessBoardProps {
   onMove: (history: string[]) => void;
   currentViewIndex: number;
+  onGameOver?: (outcome: "win" | "loss") => void;
+  isPlaying: boolean;
+  playerColor: "white" | "black";
 }
 
-const ChessBoard = ({ onMove, currentViewIndex }: ChessBoardProps) => {
+const ChessBoard = ({
+  onMove,
+  currentViewIndex,
+  onGameOver,
+  isPlaying,
+  playerColor,
+}: ChessBoardProps) => {
   const boardRef = useRef<HTMLDivElement>(null);
   const cgRef = useRef<Api | null>(null);
   const workerRef = useRef<Worker | null>(null);
-  
+
   // Use a ref for the Chess instance to prevent effect re-runs on mutation
   const chessRef = useRef(new Chess());
   const [gameUpdateTrigger, setGameUpdateTrigger] = useState(0);
 
-  const getDests = useCallback(() => {
+  const viewIndexRef = useRef(currentViewIndex);
+
+  useEffect(() => {
+    viewIndexRef.current = currentViewIndex;
+  }, [currentViewIndex]);
+
+  const getDests = useCallback((chessInstance: Chess) => {
+    // <-- ADD chessInstance PARAM
     const dests = new Map();
     SQUARES.forEach((s) => {
-      const ms = chessRef.current.moves({ square: s, verbose: true });
+      const ms = chessInstance.moves({ square: s, verbose: true });
       if (ms.length)
         dests.set(
           s,
@@ -44,7 +60,7 @@ const ChessBoard = ({ onMove, currentViewIndex }: ChessBoardProps) => {
     }
   }, []);
 
-  // 1. Setup Worker
+  // Setup Worker
   useEffect(() => {
     const worker = new Worker("/stockfish-18-lite-single.js");
     workerRef.current = worker;
@@ -62,10 +78,11 @@ const ChessBoard = ({ onMove, currentViewIndex }: ChessBoardProps) => {
             const move = chessRef.current.move(moveStr);
             if (move) {
               onMove(chessRef.current.history());
-              // FIX: Use .move() for smooth animation
               cgRef.current?.move(move.from, move.to);
-              // Trigger state sync for turn/movable state
-              setGameUpdateTrigger(prev => prev + 1);
+              setGameUpdateTrigger((prev) => prev + 1);
+              if (chessRef.current.isCheckmate()) {
+                onGameOver?.("loss");
+              }
             }
           } catch (err) {
             console.error("Stockfish move error:", err);
@@ -77,7 +94,7 @@ const ChessBoard = ({ onMove, currentViewIndex }: ChessBoardProps) => {
     return () => worker.terminate();
   }, [onMove]);
 
-  // 2. Initialize Chessground (Once)
+  // Initialize Chessground (Once)
   useEffect(() => {
     if (!boardRef.current) return;
 
@@ -88,19 +105,38 @@ const ChessBoard = ({ onMove, currentViewIndex }: ChessBoardProps) => {
       movable: {
         color: "white",
         free: false,
-        dests: getDests(),
+        dests: getDests(chessRef.current),
       },
       events: {
         move: (orig, dest) => {
           try {
-            const move = chessRef.current.move({ from: orig, to: dest, promotion: "q" });
+            const currentIdx = viewIndexRef.current;
+            const history = chessRef.current.history();
+
+            // If user is making a move in the past, truncate the history
+            if (currentIdx < history.length) {
+              const branchChess = new Chess();
+              for (let i = 0; i < currentIdx; i++) {
+                branchChess.move(history[i]);
+              }
+              // Overwrite main game state
+              chessRef.current = branchChess;
+            }
+
+            const move = chessRef.current.move({
+              from: orig,
+              to: dest,
+              promotion: "q",
+            });
             if (move) {
               onMove(chessRef.current.history());
-              setGameUpdateTrigger(prev => prev + 1);
-              setTimeout(askStockfish, 250);
+              setGameUpdateTrigger((prev) => prev + 1);
+
+              if (chessRef.current.isCheckmate()) {
+                onGameOver?.("win");
+              }
             }
           } catch (e) {
-            // Revert illegal move
             cgRef.current?.set({ fen: chessRef.current.fen() });
           }
         },
@@ -109,39 +145,62 @@ const ChessBoard = ({ onMove, currentViewIndex }: ChessBoardProps) => {
 
     cgRef.current = Chessground(boardRef.current, config);
     return () => cgRef.current?.destroy();
-  }, []); // Empty dependency array: only init once
+  }, []);
 
-  // 3. Synchronize Board View (Navigation and Live Moves)
+  // Synchronize Board View (Navigation and Live Moves)
   useEffect(() => {
     if (!cgRef.current) return;
 
     const history = chessRef.current.history();
-    const isAtLatestMove = currentViewIndex === history.length;
-    
-    let displayFen: string;
 
-    if (isAtLatestMove) {
-      displayFen = chessRef.current.fen();
+    // Rebuild the chess instance for the CURRENT view (whether past or present)
+    const viewChess = new Chess();
+    for (let i = 0; i < currentViewIndex; i++) {
+      viewChess.move(history[i]);
+    }
+
+    // Determine who is allowed to drag pieces
+    let movableColor: "white" | "black" | "both" | undefined;
+
+    if (!isPlaying) {
+      movableColor = "both";
     } else {
-      // Create a temporary board to find the historical FEN
-      const tempChess = new Chess();
-      for (let i = 0; i < currentViewIndex; i++) {
-        tempChess.move(history[i]);
-      }
-      displayFen = tempChess.fen();
+      // When playing, restrict to the user's chosen color for the CURRENT turn
+      movableColor =
+        viewChess.turn() === (playerColor === "white" ? "w" : "b")
+          ? playerColor
+          : undefined;
     }
 
     // Update the board
     cgRef.current.set({
-      fen: displayFen,
-      lastMove: undefined, // Optional: clear highlights during scrub
+      fen: viewChess.fen(),
+      orientation: playerColor,
+      lastMove: undefined,
       movable: {
-        color: isAtLatestMove ? (chessRef.current.turn() === 'w' ? "white" : "black") : undefined,
-        dests: isAtLatestMove ? getDests() : new Map(),
+        color: movableColor,
+        dests: getDests(viewChess),
       },
-      turnColor: isAtLatestMove ? (chessRef.current.turn() === 'w' ? "white" : "black") : undefined,
+      turnColor: viewChess.turn() === "w" ? "white" : "black",
     });
-  }, [currentViewIndex, gameUpdateTrigger, getDests]);
+  }, [currentViewIndex, gameUpdateTrigger, getDests, playerColor, isPlaying]);
+
+  // Auto-trigger Stockfish when Playing
+  useEffect(() => {
+    // Determine which color stockfish should be playing
+    const stockfishColor = playerColor === "white" ? "b" : "w";
+
+    if (
+      isPlaying &&
+      chessRef.current.turn() === stockfishColor &&
+      !chessRef.current.isGameOver()
+    ) {
+      const timer = setTimeout(() => {
+        askStockfish();
+      }, 250);
+      return () => clearTimeout(timer);
+    }
+  }, [isPlaying, gameUpdateTrigger, askStockfish, playerColor]);
 
   return <div ref={boardRef} style={{ width: "100%", height: "100%" }} />;
 };
