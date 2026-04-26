@@ -13,6 +13,8 @@ interface RightSideBarProps {
   gameOutcome: "win" | "loss" | null;
   onReset: () => void;
   onFlip: () => void;
+  currentFen: string;
+  onLoadFen: (fen: string) => void;
 }
 
 const RightSideBar: React.FC<RightSideBarProps> = ({
@@ -28,11 +30,15 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
   gameOutcome,
   onReset,
   onFlip,
+  currentFen,
+  onLoadFen,
 }) => {
   const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
   const [hoveredMove, setHoveredMove] = useState<number | null>(null);
   const isGameReady = Boolean(selectedOpponent && selectedTime);
   const canFlip = moveHistory.length === 0;
+  const [isCopied, setIsCopied] = useState(false);
+  const [fenInput, setFenInput] = useState("");
 
   const sidebarStyle: React.CSSProperties = {
     width: "25%",
@@ -142,28 +148,6 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
 
   return (
     <div style={sidebarStyle}>
-      {/* Row 1: Import PGN (Full Width) */}
-      <button
-        style={getButtonStyle("pgn")}
-        onMouseEnter={() => setHoveredBtn("pgn")}
-        onMouseLeave={() => setHoveredBtn(null)}
-      >
-        <svg
-          style={iconStyle}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
-            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-          />
-        </svg>
-        Import PGN
-      </button>
-
       {/* Row 2: Opponent and Time Control (Side by Side) */}
       <div style={buttonGroupStyle}>
         <button
@@ -359,6 +343,100 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
         </button>
       </div>
 
+      {/* Row 5: PGN and FEN Input */}
+      <div style={buttonGroupStyle}>
+        {/* PGN Button */}
+        <button
+          style={{
+            ...getButtonStyle("pgn"),
+            flex: "0 0 calc((100% - 20px) / 3)",
+            padding: "8px 4px",
+            gap: "4px",
+            fontSize: "0.75rem",
+          }}
+          onMouseEnter={() => setHoveredBtn("pgn")}
+          onMouseLeave={() => setHoveredBtn(null)}
+        >
+          <svg
+            style={iconStyle}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+            />
+          </svg>
+          PGN
+        </button>
+
+        {/* FEN Input + Load Button */}
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            borderRadius: "8px",
+            border: "1px solid #e0e0e0",
+            overflow: "hidden",
+            backgroundColor: "#fff",
+            borderColor:
+              hoveredBtn === "fenInput" || hoveredBtn === "loadFen"
+                ? "#ccc"
+                : "#e0e0e0",
+            transition: "border-color 0.2s ease",
+            opacity: isPlaying ? 0.6 : 1,
+          }}
+          onMouseEnter={() => setHoveredBtn("fenInput")}
+          onMouseLeave={() => setHoveredBtn(null)}
+        >
+          <input
+            type="text"
+            placeholder="Enter FEN"
+            value={fenInput}
+            onChange={(e) => setFenInput(e.target.value)}
+            disabled={isPlaying}
+            style={{
+              flex: 1,
+              border: "none",
+              outline: "none",
+              padding: "8px 10px",
+              fontSize: "0.75rem",
+              width: "100%",
+              backgroundColor: "transparent",
+              cursor: isPlaying ? "not-allowed" : "text",
+            }}
+          />
+          <button
+            disabled={isPlaying || !fenInput.trim()}
+            onClick={() => {
+              onLoadFen(fenInput.trim());
+            }}
+            style={{
+              background: hoveredBtn === "loadFen" ? "#e6e6e6" : "#f3f3f3",
+              border: "none",
+              borderLeft: "1px solid #e0e0e0",
+              padding: "0 12px",
+              fontSize: "0.75rem",
+              fontWeight: "600",
+              color: "#333",
+              transition: "background 0.2s ease",
+              cursor: isPlaying || !fenInput.trim() ? "not-allowed" : "pointer",
+              opacity: isPlaying || !fenInput.trim() ? 0.5 : 1,
+            }}
+            onMouseEnter={(e) => {
+              e.stopPropagation();
+              setHoveredBtn("loadFen");
+            }}
+            onMouseLeave={() => setHoveredBtn(null)}
+          >
+            Load
+          </button>
+        </div>
+      </div>
+
       <div style={tableContainerStyle}>
         {/* Integrated Control Header */}
         <div style={controlsSectionStyle}>
@@ -457,40 +535,105 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
             </button>
           </div>
 
-          {/* Download Button */}
-          <button
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              background: hoveredBtn === "dl" ? "#ecececf8" : "transparent",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "0.75rem",
-              fontWeight: "600",
-              color: "#666",
-              padding: "4px 8px",
-              borderRadius: "4px",
-            }}
-            onMouseEnter={() => setHoveredBtn("dl")}
-            onMouseLeave={() => setHoveredBtn(null)}
-          >
-            <svg
-              width="18"
-              height="18"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          {/* Copy FEN & Download PGN */}
+          <div style={{ display: "flex", gap: "5px" }}>
+            {/* Copy FEN Button */}
+            <button
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                background:
+                  hoveredBtn === "copyFen" ? "#ecececf8" : "transparent",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "0.75rem",
+                fontWeight: "600",
+                color: isCopied ? "#3b82f6" : "#666",
+                padding: "4px 8px",
+                borderRadius: "4px",
+                transition: "color 0.2s ease",
+              }}
+              onMouseEnter={() => setHoveredBtn("copyFen")}
+              onMouseLeave={() => setHoveredBtn(null)}
+              onClick={() => {
+                navigator.clipboard.writeText(currentFen).then(() => {
+                  setIsCopied(true);
+                  setTimeout(() => setIsCopied(false), 2000);
+                });
+              }}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-              />
-            </svg>
-            PGN
-          </button>
+              {isCopied ? (
+                // Blue Checkmark Icon
+                <svg
+                  width="18"
+                  height="18"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              ) : (
+                // Standard Copy Icon
+                <svg
+                  width="18"
+                  height="18"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  />
+                </svg>
+              )}
+              FEN
+            </button>
+
+            {/* Download PGN Button */}
+            <button
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                background: hoveredBtn === "dl" ? "#ecececf8" : "transparent",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "0.75rem",
+                fontWeight: "600",
+                color: "#666",
+                padding: "4px 8px",
+                borderRadius: "4px",
+              }}
+              onMouseEnter={() => setHoveredBtn("dl")}
+              onMouseLeave={() => setHoveredBtn(null)}
+            >
+              <svg
+                width="18"
+                height="18"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                />
+              </svg>
+              PGN
+            </button>
+          </div>
         </div>
 
         {/* Table Header */}

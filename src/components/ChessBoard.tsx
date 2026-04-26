@@ -14,6 +14,8 @@ interface ChessBoardProps {
   onGameOver?: (outcome: "win" | "loss") => void;
   isPlaying: boolean;
   playerColor: "white" | "black";
+  startingFen?: string;
+  onFenChange: (fen: string) => void;
 }
 
 const ChessBoard = ({
@@ -22,13 +24,15 @@ const ChessBoard = ({
   onGameOver,
   isPlaying,
   playerColor,
+  startingFen,
+  onFenChange,
 }: ChessBoardProps) => {
   const boardRef = useRef<HTMLDivElement>(null);
   const cgRef = useRef<Api | null>(null);
   const workerRef = useRef<Worker | null>(null);
 
   // Use a ref for the Chess instance to prevent effect re-runs on mutation
-  const chessRef = useRef(new Chess());
+  const chessRef = useRef(new Chess(startingFen));
   const [gameUpdateTrigger, setGameUpdateTrigger] = useState(0);
 
   const viewIndexRef = useRef(currentViewIndex);
@@ -115,11 +119,11 @@ const ChessBoard = ({
 
             // If user is making a move in the past, truncate the history
             if (currentIdx < history.length) {
-              const branchChess = new Chess();
+              // Update 2: Branch chess needs to know the starting position
+              const branchChess = new Chess(startingFen); 
               for (let i = 0; i < currentIdx; i++) {
                 branchChess.move(history[i]);
               }
-              // Overwrite main game state
               chessRef.current = branchChess;
             }
 
@@ -154,7 +158,7 @@ const ChessBoard = ({
     const history = chessRef.current.history();
 
     // Rebuild the chess instance for the CURRENT view (whether past or present)
-    const viewChess = new Chess();
+    const viewChess = new Chess(startingFen);
     for (let i = 0; i < currentViewIndex; i++) {
       viewChess.move(history[i]);
     }
@@ -183,7 +187,8 @@ const ChessBoard = ({
       },
       turnColor: viewChess.turn() === "w" ? "white" : "black",
     });
-  }, [currentViewIndex, gameUpdateTrigger, getDests, playerColor, isPlaying]);
+    onFenChange(viewChess.fen());
+  }, [currentViewIndex, gameUpdateTrigger, getDests, playerColor, isPlaying, startingFen]);
 
   // Auto-trigger Stockfish when Playing
   useEffect(() => {

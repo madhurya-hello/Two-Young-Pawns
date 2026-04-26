@@ -3,6 +3,7 @@ import Tiles from "../components/Tiles";
 import ChessBoard from "../components/ChessBoard";
 import RightSideBar from "../components/RightSideBar";
 import OpponentModal from "../components/OpponentModal";
+import { Chess } from "chess.js";
 
 const Home = () => {
   const [showModal, setShowModal] = useState(true);
@@ -31,6 +32,8 @@ const Home = () => {
   const overlayRef = useRef<HTMLDivElement>(null);
   const [boardKey, setBoardKey] = useState(0);
   const [playerColor, setPlayerColor] = useState<"white" | "black">("white");
+  const [startingFen, setStartingFen] = useState("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+  const [currentFen, setCurrentFen] = useState(startingFen);
 
   useEffect(() => {
     // If game resets, reset the tracker
@@ -179,6 +182,7 @@ const Home = () => {
     handleCloseOutcome();
     setIsPlaying(false);
     setBoardKey((prev) => prev + 1);
+    setStartingFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
     if (selectedTime) {
       let totalSeconds = 0;
@@ -205,6 +209,25 @@ const Home = () => {
       setShowOutcomeOverlay(false);
       setIsOutcomeExiting(false);
     }, 300);
+  };
+
+  const handleLoadFen = (fen: string) => {
+    try {
+      // validation to ensure it's a valid FEN before breaking the board
+      new Chess(fen);
+      
+      setStartingFen(fen);
+      setMoveHistory([]);
+      setCurrentViewIndex(0);
+      setGameOutcome(null);
+      handleCloseOutcome();
+      setIsPlaying(false);
+
+      // Remount ChessBoard with the new FEN!
+      setBoardKey((prev) => prev + 1); 
+    } catch (e) {
+      alert("Invalid FEN string");
+    }
   };
 
   const screenContainerStyle: React.CSSProperties = {
@@ -343,6 +366,8 @@ const Home = () => {
                   setGameOutcome(outcome);
                   setShowOutcomeOverlay(true);
                 }}
+                startingFen={startingFen}
+                onFenChange={setCurrentFen}
               />
             </div>
 
@@ -455,6 +480,8 @@ const Home = () => {
           onFlip={() =>
             setPlayerColor((prev) => (prev === "white" ? "black" : "white"))
           }
+          currentFen={currentFen}
+          onLoadFen={handleLoadFen}
         />
       </div>
 
