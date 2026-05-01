@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 
 interface RightSideBarProps {
   moveHistory: string[];
@@ -15,6 +15,9 @@ interface RightSideBarProps {
   onFlip: () => void;
   currentFen: string;
   onLoadFen: (fen: string) => void;
+  currentPgn: string;
+  onLoadPgn: (pgn: string) => void;
+  playerColor: "white" | "black";
 }
 
 const RightSideBar: React.FC<RightSideBarProps> = ({
@@ -32,6 +35,9 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
   onFlip,
   currentFen,
   onLoadFen,
+  currentPgn,
+  onLoadPgn,
+  playerColor,
 }) => {
   const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
   const [hoveredMove, setHoveredMove] = useState<number | null>(null);
@@ -39,6 +45,7 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
   const canFlip = moveHistory.length === 0;
   const [isCopied, setIsCopied] = useState(false);
   const [fenInput, setFenInput] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const sidebarStyle: React.CSSProperties = {
     width: "25%",
@@ -345,7 +352,24 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
 
       {/* Row 5: PGN and FEN Input */}
       <div style={buttonGroupStyle}>
-        {/* PGN Button */}
+        {/* PGN Import Button */}
+        <input
+          type="file"
+          accept=".pgn"
+          ref={fileInputRef}
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const content = event.target?.result as string;
+              if (content) onLoadPgn(content);
+            };
+            reader.readAsText(file);
+            e.target.value = ""; // Reset input so the same file can be loaded again
+          }}
+        />
         <button
           style={{
             ...getButtonStyle("pgn"),
@@ -354,6 +378,7 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
             gap: "4px",
             fontSize: "0.75rem",
           }}
+          onClick={() => fileInputRef.current?.click()} // Triggers hidden file input
           onMouseEnter={() => setHoveredBtn("pgn")}
           onMouseLeave={() => setHoveredBtn(null)}
         >
@@ -616,6 +641,66 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
               }}
               onMouseEnter={() => setHoveredBtn("dl")}
               onMouseLeave={() => setHoveredBtn(null)}
+              onClick={() => {
+                if (!currentPgn) return;
+
+                let finalPgn = currentPgn;
+
+                // chess.js automatically generates headers with "?" placeholders.
+                // We need to target and replace those specific placeholders.
+                if (finalPgn.includes('[White "?"]')) {
+                  const wName =
+                    playerColor === "white"
+                      ? "You"
+                      : selectedOpponent?.name || "You";
+                  const bName =
+                    playerColor === "black"
+                      ? "You"
+                      : selectedOpponent?.name || "You";
+                  const wElo =
+                    playerColor === "white"
+                      ? "1500"
+                      : selectedOpponent?.rating?.toString() || "1500";
+                  const bElo =
+                    playerColor === "black"
+                      ? "1500"
+                      : selectedOpponent?.rating?.toString() || "1500";
+                  const tc = selectedTime ? selectedTime.time : "-";
+                  const dateStr = new Date()
+                    .toISOString()
+                    .split("T")[0]
+                    .replace(/-/g, ".");
+
+                  finalPgn = finalPgn
+                    .replace(/\[Event "\?"\]/, `[Event "Casual Game"]`)
+                    .replace(/\[Site "\?"\]/, `[Site "Local"]`)
+                    .replace(
+                      /\[Date "\?\?\?\?\.\?\?\.\?\?"\]/,
+                      `[Date "${dateStr}"]`,
+                    )
+                    .replace(/\[Round "\?"\]/, `[Round "-"]`)
+                    .replace(
+                      /\[White "\?"\]/,
+                      `[White "${wName}"]\n[WhiteElo "${wElo}"]`,
+                    )
+                    .replace(
+                      /\[Black "\?"\]/,
+                      `[Black "${bName}"]\n[BlackElo "${bElo}"]\n[TimeControl "${tc}"]`,
+                    );
+                }
+
+                const blob = new Blob([finalPgn], { type: "text/plain" });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = selectedOpponent
+                  ? `game_vs_${selectedOpponent.name.replace(/\s+/g, "_")}.pgn`
+                  : "chess_game.pgn";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+              }}
             >
               <svg
                 width="18"

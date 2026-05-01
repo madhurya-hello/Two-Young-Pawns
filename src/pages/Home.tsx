@@ -22,8 +22,8 @@ const Home = () => {
     type: string;
   } | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [whiteTime, setWhiteTime] = useState(30);
-  const [blackTime, setBlackTime] = useState(30);
+  const [whiteTime, setWhiteTime] = useState(215999);
+  const [blackTime, setBlackTime] = useState(215999);
   const [increment, setIncrement] = useState(0);
   const prevHistoryLengthRef = useRef(0);
   const [gameOutcome, setGameOutcome] = useState<"win" | "loss" | null>(null);
@@ -32,8 +32,13 @@ const Home = () => {
   const overlayRef = useRef<HTMLDivElement>(null);
   const [boardKey, setBoardKey] = useState(0);
   const [playerColor, setPlayerColor] = useState<"white" | "black">("white");
-  const [startingFen, setStartingFen] = useState("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+  const [startingFen, setStartingFen] = useState(
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+  );
   const [currentFen, setCurrentFen] = useState(startingFen);
+  const [currentPgn, setCurrentPgn] = useState("");
+  const [startTotalTime, setStartTotalTime] = useState(215999);
+  const [timeControlMoveIndex, setTimeControlMoveIndex] = useState(0);
 
   useEffect(() => {
     // If game resets, reset the tracker
@@ -123,9 +128,10 @@ const Home = () => {
     }, 300);
   };
 
-  const handleMove = (history: string[]) => {
+  const handleMove = (history: string[], pgn: string = "") => {
     setMoveHistory(history);
     setCurrentViewIndex(history.length);
+    if (pgn) setCurrentPgn(pgn);
   };
 
   const handleCloseOpponent = () => {
@@ -168,9 +174,11 @@ const Home = () => {
     setIsPlaying(false);
     setWhiteTime(totalSeconds);
     setBlackTime(totalSeconds);
+    setStartTotalTime(totalSeconds);
     setIncrement(incSeconds);
     setGameOutcome(null);
     handleCloseOutcome();
+    setTimeControlMoveIndex(moveHistory.length);
 
     handleClose();
   };
@@ -178,6 +186,7 @@ const Home = () => {
   const handleReset = () => {
     setMoveHistory([]);
     setCurrentViewIndex(0);
+    setCurrentPgn("");
     setGameOutcome(null);
     handleCloseOutcome();
     setIsPlaying(false);
@@ -200,6 +209,8 @@ const Home = () => {
       }
       setWhiteTime(totalSeconds);
       setBlackTime(totalSeconds);
+      setStartTotalTime(totalSeconds);
+      setTimeControlMoveIndex(0);
     }
   };
 
@@ -215,20 +226,149 @@ const Home = () => {
     try {
       // validation to ensure it's a valid FEN before breaking the board
       new Chess(fen);
-      
+
       setStartingFen(fen);
       setMoveHistory([]);
       setCurrentViewIndex(0);
+      setCurrentPgn("");
       setGameOutcome(null);
       handleCloseOutcome();
       setIsPlaying(false);
+      setTimeControlMoveIndex(0);
 
       // Remount ChessBoard with the new FEN!
-      setBoardKey((prev) => prev + 1); 
+      setBoardKey((prev) => prev + 1);
     } catch (e) {
       alert("Invalid FEN string");
     }
   };
+
+  const handleLoadPgn = (pgnString: string) => {
+    try {
+      const tempChess = new Chess();
+      tempChess.loadPgn(pgnString);
+      const history = tempChess.history();
+
+      while (tempChess.undo()) {}
+      const startFen = tempChess.fen();
+
+      // Extract Headers
+      const extractHeader = (key: string) => {
+        const match = pgnString.match(new RegExp(`\\[${key}\\s+"([^"]*)"\\]`));
+        return match ? match[1] : null;
+      };
+
+      const wName = extractHeader("White");
+      const bName = extractHeader("Black");
+      const wElo = extractHeader("WhiteElo");
+      const bElo = extractHeader("BlackElo");
+      const tc = extractHeader("TimeControl");
+
+      let pColor: "white" | "black" = "white";
+      let oppName = "Opponent";
+      let oppRating = 1500;
+
+      // Identify who the opponent is
+      if (wName === "You") {
+        pColor = "white";
+        oppName = bName || "Opponent";
+        oppRating = parseInt(bElo || "1500", 10);
+      } else if (bName === "You") {
+        pColor = "black";
+        oppName = wName || "Opponent";
+        oppRating = parseInt(wElo || "1500", 10);
+      } else {
+        if (wName) oppName = wName;
+        if (wElo) oppRating = parseInt(wElo, 10);
+      }
+
+      setPlayerColor(pColor);
+      if (oppName !== "Opponent" || wName) {
+        setSelectedOpponent({ name: oppName, image: "", rating: oppRating });
+      }
+
+      // Reconstruct Time Control
+      let parsedStartTotal = 215999;
+      if (tc && tc !== "-") {
+        setSelectedTime({ time: tc, type: "Custom" });
+        let totalSeconds = 0;
+        const timeStr = tc.toLowerCase().trim();
+        if (timeStr.includes("+")) {
+          const [mins] = timeStr.split("+");
+          totalSeconds = parseInt(mins, 10) * 60;
+        } else if (timeStr.includes(":")) {
+          const [m, s] = timeStr.split(":");
+          totalSeconds = parseInt(m || "0", 10) * 60 + parseInt(s || "0", 10);
+        } else if (timeStr.includes("sec")) {
+          totalSeconds = parseInt(timeStr, 10);
+        } else {
+          totalSeconds = parseInt(timeStr, 10) * 60;
+        }
+        if (totalSeconds > 0) parsedStartTotal = totalSeconds;
+      }
+
+      setWhiteTime(parsedStartTotal);
+      setBlackTime(parsedStartTotal);
+      setStartTotalTime(parsedStartTotal);
+      setStartingFen(startFen);
+      setMoveHistory(history);
+      setCurrentViewIndex(0);
+      setCurrentPgn(pgnString);
+      setIsPlaying(false);
+      setGameOutcome(null);
+      handleCloseOutcome();
+      setTimeControlMoveIndex(0);
+      setBoardKey((prev) => prev + 1);
+    } catch (e) {
+      alert("Invalid PGN file structure.");
+    }
+  };
+
+  // Parses the PGN clock tags to visually update the clock during navigation
+  useEffect(() => {
+    if (!isPlaying && currentPgn && currentViewIndex > 0) {
+      const matches = [...currentPgn.matchAll(/\[%clk\s+(\d+):(\d+):(\d+)\]/g)];
+      const parsedClocks = matches.map(
+        (m) =>
+          parseInt(m[1], 10) * 3600 +
+          parseInt(m[2], 10) * 60 +
+          parseInt(m[3], 10),
+      );
+
+      if (parsedClocks.length > 0) {
+        let wt = startTotalTime;
+        let bt = startTotalTime;
+
+        for (let i = 0; i < currentViewIndex; i++) {
+          // If we hit the move where the time control was explicitly set, reset the timeline
+          if (i === timeControlMoveIndex) {
+            wt = startTotalTime;
+            bt = startTotalTime;
+          }
+
+          if (i < parsedClocks.length) {
+            if (i % 2 === 0) wt = parsedClocks[i];
+            else bt = parsedClocks[i];
+          }
+        }
+
+        // Apply the reset if we are currently sitting exactly at the move where time was set
+        if (currentViewIndex === timeControlMoveIndex) {
+          wt = startTotalTime;
+          bt = startTotalTime;
+        }
+
+        setWhiteTime(wt);
+        setBlackTime(bt);
+      }
+    }
+  }, [
+    currentViewIndex,
+    isPlaying,
+    currentPgn,
+    startTotalTime,
+    timeControlMoveIndex,
+  ]);
 
   const screenContainerStyle: React.CSSProperties = {
     width: "100vw",
@@ -357,6 +497,7 @@ const Home = () => {
             <div style={boardContainerStyle}>
               <ChessBoard
                 key={boardKey}
+                moveHistory={moveHistory}
                 isPlaying={isPlaying}
                 playerColor={playerColor}
                 onMove={handleMove}
@@ -368,6 +509,9 @@ const Home = () => {
                 }}
                 startingFen={startingFen}
                 onFenChange={setCurrentFen}
+                currentPgn={currentPgn}
+                whiteTime={whiteTime}
+                blackTime={blackTime}
               />
             </div>
 
@@ -482,6 +626,9 @@ const Home = () => {
           }
           currentFen={currentFen}
           onLoadFen={handleLoadFen}
+          currentPgn={currentPgn}
+          onLoadPgn={handleLoadPgn}
+          playerColor={playerColor}
         />
       </div>
 
