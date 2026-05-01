@@ -27,12 +27,12 @@ const OpponentModal: React.FC<OpponentModalProps> = ({
 
   const opponents: Opponent[] = [
     { name: "Vihaan", rating: 700, image: "Vihaan.png" },
-    { name: "Saanvi", rating: 900, image: "Saanvi.png" },
-    { name: "Prakash", rating: 1000, image: "Prakash.png" },
-    { name: "Anika", rating: 1200, image: "Anika.png" },
-    { name: "Gayatri", rating: 1350, image: "Gayatri.png" },
-    { name: "Reyansh", rating: 1600, image: "Reyansh.png" },
-    { name: "Myra", rating: 2000, image: "Myra.png" },
+    { name: "Saanvi", rating: 1000, image: "Saanvi.png" },
+    { name: "Prakash", rating: 1250, image: "Prakash.png" },
+    { name: "Anika", rating: 1500, image: "Anika.png" },
+    { name: "Gayatri", rating: 1750, image: "Gayatri.png" },
+    { name: "Reyansh", rating: 1900, image: "Reyansh.png" },
+    { name: "Myra", rating: 2250, image: "Myra.png" },
     { name: "Atharv", rating: 2550, image: "Atharv.png" },
     { name: "Kailash", rating: 2850, image: "Kailash.png" },
   ];

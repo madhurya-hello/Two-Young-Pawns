@@ -20,6 +20,7 @@ interface ChessBoardProps {
   currentPgn: string;
   whiteTime: number;
   blackTime: number;
+  opponentRating?: number;
 }
 
 const ChessBoard = ({
@@ -34,6 +35,7 @@ const ChessBoard = ({
   currentPgn,
   whiteTime,
   blackTime,
+  opponentRating = 1500,
 }: ChessBoardProps) => {
   const boardRef = useRef<HTMLDivElement>(null);
   const cgRef = useRef<Api | null>(null);
@@ -115,7 +117,6 @@ const ChessBoard = ({
     const worker = new Worker("/stockfish-18-lite-single.js");
     workerRef.current = worker;
     worker.postMessage("uci");
-    worker.postMessage("setoption name Skill Level value 5");
     worker.postMessage("isready");
 
     worker.onmessage = (e) => {
@@ -157,6 +158,29 @@ const ChessBoard = ({
     return () => worker.terminate();
   }, []);
 
+  // Dynamically update Stockfish Skill Level when the opponent changes
+  useEffect(() => {
+    if (workerRef.current) {
+      const eloToLevel: Record<number, number> = {
+        700: 0,
+        1000: 1,
+        1250: 2,
+        1500: 3,
+        1750: 6,
+        1900: 9,
+        2250: 12,
+        2550: 15,
+        2850: 20,
+      };
+      // If it's a custom rating somehow not in the list, fallback to level 5.
+      const calculatedLevel = eloToLevel[opponentRating] ?? 5;
+
+      workerRef.current.postMessage(
+        `setoption name Skill Level value ${calculatedLevel}`,
+      );
+    }
+  }, [opponentRating]);
+
   // Initialize Chessground (Once)
   useEffect(() => {
     if (!boardRef.current) return;
@@ -184,8 +208,8 @@ const ChessBoard = ({
       },
       events: {
         move: (orig, dest) => {
-          // Skip if Stockfish is making the move
-          if (isEngineMoveRef.current) return;
+          // Skip if Stockfish is making the move, OR if the game is already over
+          if (isEngineMoveRef.current || chessRef.current.isGameOver()) return;
           try {
             // If making a move in the past, safely rewind the master engine
             if (viewIndexRef.current < chessRef.current.history().length) {

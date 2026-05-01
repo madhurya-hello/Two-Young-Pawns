@@ -60,6 +60,8 @@ const Home = () => {
     prevHistoryLengthRef.current = moveHistory.length;
   }, [moveHistory.length, increment]);
 
+  // Inside Home.tsx
+
   useEffect(() => {
     let interval: number;
 
@@ -70,7 +72,8 @@ const Home = () => {
           setWhiteTime((prev) => {
             if (prev <= 1) {
               setIsPlaying(false);
-              setGameOutcome("loss");
+              // If White runs out of time, you lose if you are White, win if you are Black
+              setGameOutcome(playerColor === "white" ? "loss" : "win");
               setShowOutcomeOverlay(true);
               return 0;
             }
@@ -80,7 +83,8 @@ const Home = () => {
           setBlackTime((prev) => {
             if (prev <= 1) {
               setIsPlaying(false);
-              setGameOutcome("win");
+              // If Black runs out of time, you lose if you are Black, win if you are White
+              setGameOutcome(playerColor === "black" ? "loss" : "win");
               setShowOutcomeOverlay(true);
               return 0;
             }
@@ -91,7 +95,7 @@ const Home = () => {
     }
 
     return () => window.clearInterval(interval);
-  }, [isPlaying, moveHistory.length]);
+  }, [isPlaying, moveHistory.length, playerColor]); // Don't forget to add playerColor to the dependency array
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -512,6 +516,7 @@ const Home = () => {
                 currentPgn={currentPgn}
                 whiteTime={whiteTime}
                 blackTime={blackTime}
+                opponentRating={selectedOpponent?.rating || 1500}
               />
             </div>
 
