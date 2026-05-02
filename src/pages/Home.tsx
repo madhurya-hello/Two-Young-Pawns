@@ -26,7 +26,9 @@ const Home = () => {
   const [blackTime, setBlackTime] = useState(215999);
   const [increment, setIncrement] = useState(0);
   const prevHistoryLengthRef = useRef(0);
-  const [gameOutcome, setGameOutcome] = useState<"win" | "loss" | null>(null);
+  const [gameOutcome, setGameOutcome] = useState<
+    "win" | "loss" | "draw" | null
+  >(null);
   const [showOutcomeOverlay, setShowOutcomeOverlay] = useState(false);
   const [isOutcomeExiting, setIsOutcomeExiting] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -80,7 +82,10 @@ const Home = () => {
               setIsPlaying(false);
               setGameOutcome(playerColor === "white" ? "loss" : "win");
               setShowOutcomeOverlay(true);
-              currentClocksRef.current = { wt: 0, bt: currentClocksRef.current.bt };
+              currentClocksRef.current = {
+                wt: 0,
+                bt: currentClocksRef.current.bt,
+              };
               return 0;
             }
             return prev - 1;
@@ -91,7 +96,10 @@ const Home = () => {
               setIsPlaying(false);
               setGameOutcome(playerColor === "black" ? "loss" : "win");
               setShowOutcomeOverlay(true);
-              currentClocksRef.current = { wt: currentClocksRef.current.wt, bt: 0 };
+              currentClocksRef.current = {
+                wt: currentClocksRef.current.wt,
+                bt: 0,
+              };
               return 0;
             }
             return prev - 1;
@@ -381,8 +389,8 @@ const Home = () => {
     currentPgn,
     startTotalTime,
     timeControlMoveIndex,
-    gameOutcome, 
-    moveHistory.length
+    gameOutcome,
+    moveHistory.length,
   ]);
 
   const screenContainerStyle: React.CSSProperties = {
@@ -596,7 +604,9 @@ const Home = () => {
                   backgroundColor:
                     gameOutcome === "win"
                       ? "rgba(0, 255, 42, 0.3)"
-                      : "rgba(255, 0, 0, 0.3)",
+                      : gameOutcome === "loss"
+                        ? "rgba(255, 0, 0, 0.3)"
+                        : "rgba(128, 128, 128, 0.5)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -619,7 +629,7 @@ const Home = () => {
                       : "popInText 0.4s ease-out forwards",
                   }}
                 >
-                  {gameOutcome === "win" ? "You Won" : "You Lost"}
+                  {gameOutcome === "win" ? "You Won" : gameOutcome === "loss" ? "You Lost" : "Game Drawn"}
                 </div>
               </div>
             </>

@@ -12,7 +12,7 @@ interface ChessBoardProps {
   moveHistory: string[];
   onMove: (history: string[], pgn: string) => void;
   currentViewIndex: number;
-  onGameOver?: (outcome: "win" | "loss") => void;
+  onGameOver?: (outcome: "win" | "loss" | "draw") => void;
   isPlaying: boolean;
   playerColor: "white" | "black";
   startingFen?: string;
@@ -280,6 +280,8 @@ const ChessBoard = ({
 
                 if (chessRef.current.isCheckmate()) {
                   onGameOverRef.current?.("loss");
+                } else if (chessRef.current.isDraw()) {
+                  onGameOverRef.current?.("draw");
                 }
               }
             } catch (err) {
@@ -378,6 +380,8 @@ const ChessBoard = ({
 
               if (chessRef.current.isCheckmate()) {
                 onGameOverRef.current?.("win");
+              } else if (chessRef.current.isDraw()) {
+                onGameOverRef.current?.("draw");
               }
             }
           } catch (e) {

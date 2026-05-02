@@ -10,7 +10,7 @@ interface RightSideBarProps {
   selectedTime: { time: string; type: string } | null;
   isPlaying: boolean;
   onTogglePlay: () => void;
-  gameOutcome: "win" | "loss" | null;
+  gameOutcome: "win" | "loss" | "draw" | null;
   onReset: () => void;
   onFlip: () => void;
   currentFen: string;
@@ -646,8 +646,16 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
 
                 let finalPgn = currentPgn;
 
-                // chess.js automatically generates headers with "?" placeholders.
-                // We need to target and replace those specific placeholders.
+                // Calculate Standard PGN Result
+                let result = "*";
+                if (gameOutcome === "draw") {
+                  result = "1/2-1/2";
+                } else if (gameOutcome === "win") {
+                  result = playerColor === "white" ? "1-0" : "0-1";
+                } else if (gameOutcome === "loss") {
+                  result = playerColor === "white" ? "0-1" : "1-0";
+                }
+
                 if (finalPgn.includes('[White "?"]')) {
                   const wName =
                     playerColor === "white"
@@ -686,7 +694,14 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
                     .replace(
                       /\[Black "\?"\]/,
                       `[Black "${bName}"]\n[BlackElo "${bElo}"]\n[TimeControl "${tc}"]`,
-                    );
+                    )
+                    .replace(/\[Result "\*"\]/, `[Result "${result}"]`);
+                }
+
+                // chess.js automatically adds a `*` at the very end of the move text if it considers the game unfinished.
+                // If we have a definitive result (like from a timeout), we should swap the trailing `*` for the actual score.
+                if (result !== "*") {
+                  finalPgn = finalPgn.replace(/\*\s*$/, result);
                 }
 
                 const blob = new Blob([finalPgn], { type: "text/plain" });
