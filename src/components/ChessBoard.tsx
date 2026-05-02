@@ -21,6 +21,7 @@ interface ChessBoardProps {
   whiteTime: number;
   blackTime: number;
   opponentRating?: number;
+  timeControl?: string;
 }
 
 const ChessBoard = ({
@@ -36,6 +37,7 @@ const ChessBoard = ({
   whiteTime,
   blackTime,
   opponentRating = 1500,
+  timeControl,
 }: ChessBoardProps) => {
   const boardRef = useRef<HTMLDivElement>(null);
   const cgRef = useRef<Api | null>(null);
@@ -112,6 +114,87 @@ const ChessBoard = ({
     }
   }, []);
 
+  const multiPvScoresRef = useRef<number[]>([]);
+  const lastHighWaitMoveRef = useRef<number>(-10);
+  const timeoutRef = useRef<number | null>(null);
+
+  // The Wait Time Calculator
+  const getWaitTime = (
+    moveNumber: number,
+    timeControlStr: string,
+    cpScores: number[],
+    remainingTime: number, // in seconds
+    lastHighMove: number,
+  ): { finalWait: number; wasHigh: boolean } => {
+    // Fixed early moves
+    if (moveNumber === 1) return { finalWait: 1, wasHigh: false };
+    if (moveNumber >= 2 && moveNumber <= 5) {
+      return { finalWait: timeControlStr === "1+0" ? 1 : 2, wasHigh: false };
+    }
+
+    // Calculate Centipawn difference category
+    let waitCategory = "low";
+    if (cpScores.length >= 2) {
+      const diff = Math.abs(cpScores[0] - cpScores[1]);
+      // Thresholds: smaller difference = higher wait
+      if (diff <= 30) waitCategory = "super high";
+      else if (diff <= 80) waitCategory = "high";
+      else if (diff <= 200) waitCategory = "medium";
+      else waitCategory = "low";
+    }
+
+    // Gap check (at least 5 moves between high/super high waits)
+    let wasHigh = false;
+    if (waitCategory === "high" || waitCategory === "super high") {
+      if (moveNumber - lastHighMove < 5) {
+        waitCategory = "medium"; // Downgrade the wait
+      } else {
+        wasHigh = true;
+      }
+    }
+
+    // Time Control Map
+    const rules: Record<
+      string,
+      {
+        low: number;
+        med: number;
+        high: number;
+        super: number;
+        under: number;
+        max: number;
+      }
+    > = {
+      "15+10": { low: 5, med: 10, high: 30, super: 70, under: 30, max: 10 },
+      "10+5": { low: 3, med: 8, high: 20, super: 60, under: 15, max: 5 },
+      "10+0": { low: 3, med: 5, high: 20, super: 60, under: 20, max: 2 },
+      "5+3": { low: 3, med: 5, high: 15, super: 50, under: 15, max: 5 },
+      "5+0": { low: 3, med: 5, high: 15, super: 35, under: 20, max: 2 },
+      "3+2": { low: 3, med: 5, high: 10, super: 20, under: 15, max: 5 },
+      "3+0": { low: 3, med: 4, high: 8, super: 20, under: 20, max: 2 },
+      "2+1": { low: 2, med: 4, high: 8, super: 15, under: 15, max: 3 },
+      "1+0": { low: 2, med: 3, high: 5, super: 10, under: 10, max: 1 },
+    };
+
+    const rule = rules[timeControlStr] || rules["10+0"]; // default to 10+0 if custom
+
+    let intendedWait = rule.low;
+    if (waitCategory === "medium") intendedWait = rule.med;
+    if (waitCategory === "high") intendedWait = rule.high;
+    if (waitCategory === "super high") intendedWait = rule.super;
+
+    // Clamping logic: maxAllowedWait dynamically limits the wait so they are never left with less than (threshold - max)
+    let maxAllowedWait = remainingTime - rule.under + rule.max;
+
+    // If they are strictly under the threshold already:
+    if (remainingTime <= rule.under) maxAllowedWait = rule.max;
+    maxAllowedWait = Math.max(0.5, maxAllowedWait); // safety fallback
+
+    const finalWait = Math.min(intendedWait, maxAllowedWait);
+
+    return { finalWait, wasHigh };
+  };
+
   // Setup Worker
   useEffect(() => {
     const worker = new Worker("/stockfish-18-lite-single.js");
@@ -119,44 +202,99 @@ const ChessBoard = ({
     worker.postMessage("uci");
     worker.postMessage("isready");
 
+    // Enable MultiPV to analyze the top 2 moves so we can calculate Centipawn differences
+    worker.postMessage("setoption name MultiPV value 2");
+
     worker.onmessage = (e) => {
       const msg = e.data;
+
+      // Extract CP or Mate scores from MultiPV output
+      if (msg.startsWith("info") && msg.includes("score")) {
+        const pvMatch = msg.match(/multipv\s+(\d+)/);
+        if (pvMatch) {
+          const index = parseInt(pvMatch[1], 10) - 1; // multipv 1 -> index 0
+
+          const cpMatch = msg.match(/score\s+cp\s+(-?\d+)/);
+          const mateMatch = msg.match(/score\s+mate\s+(-?\d+)/);
+
+          if (cpMatch) {
+            multiPvScoresRef.current[index] = parseInt(cpMatch[1], 10);
+          } else if (mateMatch) {
+            // Treat mate as an overwhelming centipawn advantage (10,000)
+            multiPvScoresRef.current[index] = 10000;
+          }
+        }
+      }
+
       if (msg.startsWith("bestmove")) {
         const parts = msg.split(" ");
         const moveStr = parts[1];
         if (moveStr) {
-          try {
-            const move = chessRef.current.move(moveStr);
-            if (move) {
-              const movedColor =
-                chessRef.current.turn() === "b" ? "white" : "black";
-              const timeToLog =
-                movedColor === "white"
-                  ? whiteTimeRef.current
-                  : blackTimeRef.current;
-              chessRef.current.setComment(formatClk(timeToLog));
+          // Calculate which turn the engine is currently on
+          const engineMoveNumber =
+            Math.floor(chessRef.current.history().length / 2) + 1;
+          const timeControlStr = timeControl || "10+0";
+          const opponentRemainingTime =
+            playerColor === "white"
+              ? blackTimeRef.current
+              : whiteTimeRef.current;
 
-              onMoveRef.current(
-                chessRef.current.history(),
-                chessRef.current.pgn(),
-              );
-              isEngineMoveRef.current = true;
-              cgRef.current?.move(move.from, move.to);
-              isEngineMoveRef.current = false;
-              setGameUpdateTrigger((prev) => prev + 1);
-              if (chessRef.current.isCheckmate()) {
-                onGameOverRef.current?.("loss");
+          // Process the Star Rule
+          const { finalWait, wasHigh } = getWaitTime(
+            engineMoveNumber,
+            timeControlStr,
+            multiPvScoresRef.current,
+            opponentRemainingTime,
+            lastHighWaitMoveRef.current,
+          );
+
+          if (wasHigh) lastHighWaitMoveRef.current = engineMoveNumber;
+
+          // Clear scores for the next move analysis
+          multiPvScoresRef.current = [];
+
+          // Wait before playing
+          timeoutRef.current = window.setTimeout(() => {
+            try {
+              // Ensure game didn't reset while waiting
+              if (chessRef.current.isGameOver()) return;
+
+              const move = chessRef.current.move(moveStr);
+              if (move) {
+                const movedColor =
+                  chessRef.current.turn() === "b" ? "white" : "black";
+                const timeToLog =
+                  movedColor === "white"
+                    ? whiteTimeRef.current
+                    : blackTimeRef.current;
+                chessRef.current.setComment(formatClk(timeToLog));
+
+                onMoveRef.current(
+                  chessRef.current.history(),
+                  chessRef.current.pgn(),
+                );
+                isEngineMoveRef.current = true;
+                cgRef.current?.move(move.from, move.to);
+                isEngineMoveRef.current = false;
+                setGameUpdateTrigger((prev) => prev + 1);
+
+                if (chessRef.current.isCheckmate()) {
+                  onGameOverRef.current?.("loss");
+                }
               }
+            } catch (err) {
+              console.error("Stockfish move error:", err);
             }
-          } catch (err) {
-            console.error("Stockfish move error:", err);
-          }
+          }, finalWait * 1000); // converting seconds to milliseconds
         }
       }
     };
 
-    return () => worker.terminate();
-  }, []);
+    return () => {
+      worker.terminate();
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [timeControl]); // Re-bind if time control changes
 
   // Dynamically update Stockfish Skill Level when the opponent changes
   useEffect(() => {

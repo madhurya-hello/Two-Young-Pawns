@@ -39,6 +39,14 @@ const Home = () => {
   const [currentPgn, setCurrentPgn] = useState("");
   const [startTotalTime, setStartTotalTime] = useState(215999);
   const [timeControlMoveIndex, setTimeControlMoveIndex] = useState(0);
+  const currentClocksRef = useRef({ wt: startTotalTime, bt: startTotalTime });
+
+  // Keep the ref synced with the live clock while playing
+  useEffect(() => {
+    if (isPlaying) {
+      currentClocksRef.current = { wt: whiteTime, bt: blackTime };
+    }
+  }, [whiteTime, blackTime, isPlaying]);
 
   useEffect(() => {
     // If game resets, reset the tracker
@@ -60,8 +68,6 @@ const Home = () => {
     prevHistoryLengthRef.current = moveHistory.length;
   }, [moveHistory.length, increment]);
 
-  // Inside Home.tsx
-
   useEffect(() => {
     let interval: number;
 
@@ -72,9 +78,9 @@ const Home = () => {
           setWhiteTime((prev) => {
             if (prev <= 1) {
               setIsPlaying(false);
-              // If White runs out of time, you lose if you are White, win if you are Black
               setGameOutcome(playerColor === "white" ? "loss" : "win");
               setShowOutcomeOverlay(true);
+              currentClocksRef.current = { wt: 0, bt: currentClocksRef.current.bt };
               return 0;
             }
             return prev - 1;
@@ -83,9 +89,9 @@ const Home = () => {
           setBlackTime((prev) => {
             if (prev <= 1) {
               setIsPlaying(false);
-              // If Black runs out of time, you lose if you are Black, win if you are White
               setGameOutcome(playerColor === "black" ? "loss" : "win");
               setShowOutcomeOverlay(true);
+              currentClocksRef.current = { wt: currentClocksRef.current.wt, bt: 0 };
               return 0;
             }
             return prev - 1;
@@ -95,7 +101,7 @@ const Home = () => {
     }
 
     return () => window.clearInterval(interval);
-  }, [isPlaying, moveHistory.length, playerColor]); // Don't forget to add playerColor to the dependency array
+  }, [isPlaying, moveHistory.length, playerColor]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -344,26 +350,29 @@ const Home = () => {
         let bt = startTotalTime;
 
         for (let i = 0; i < currentViewIndex; i++) {
-          // If we hit the move where the time control was explicitly set, reset the timeline
           if (i === timeControlMoveIndex) {
             wt = startTotalTime;
             bt = startTotalTime;
           }
-
           if (i < parsedClocks.length) {
             if (i % 2 === 0) wt = parsedClocks[i];
             else bt = parsedClocks[i];
           }
         }
 
-        // Apply the reset if we are currently sitting exactly at the move where time was set
         if (currentViewIndex === timeControlMoveIndex) {
           wt = startTotalTime;
           bt = startTotalTime;
         }
 
-        setWhiteTime(wt);
-        setBlackTime(bt);
+        // If we are at the very end of a completed game, use our latched final timers.
+        if (gameOutcome && currentViewIndex === moveHistory.length) {
+          setWhiteTime(currentClocksRef.current.wt);
+          setBlackTime(currentClocksRef.current.bt);
+        } else {
+          setWhiteTime(wt);
+          setBlackTime(bt);
+        }
       }
     }
   }, [
@@ -372,6 +381,8 @@ const Home = () => {
     currentPgn,
     startTotalTime,
     timeControlMoveIndex,
+    gameOutcome, 
+    moveHistory.length
   ]);
 
   const screenContainerStyle: React.CSSProperties = {
@@ -510,6 +521,7 @@ const Home = () => {
                   setIsPlaying(false);
                   setGameOutcome(outcome);
                   setShowOutcomeOverlay(true);
+                  currentClocksRef.current = { wt: whiteTime, bt: blackTime };
                 }}
                 startingFen={startingFen}
                 onFenChange={setCurrentFen}
@@ -517,6 +529,7 @@ const Home = () => {
                 whiteTime={whiteTime}
                 blackTime={blackTime}
                 opponentRating={selectedOpponent?.rating || 1500}
+                timeControl={selectedTime?.time}
               />
             </div>
 
