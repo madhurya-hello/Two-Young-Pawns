@@ -3,6 +3,7 @@ import { Chessground } from "chessground";
 import { Chess, SQUARES } from "chess.js";
 import type { Config } from "chessground/config";
 import type { Api } from "chessground/api";
+import type { Key } from "chessground/types";
 
 import "chessground/assets/chessground.base.css";
 import "chessground/assets/chessground.brown.css";
@@ -69,6 +70,11 @@ const ChessBoard = ({
   const onMoveRef = useRef(onMove);
   const onGameOverRef = useRef(onGameOver);
 
+  const isPlayingRef = useRef(isPlaying);
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
   useEffect(() => {
     viewIndexRef.current = currentViewIndex;
     onMoveRef.current = onMove;
@@ -85,13 +91,13 @@ const ChessBoard = ({
   };
 
   const getDests = useCallback((chessInstance: Chess) => {
-    const dests = new Map();
+    const dests = new Map<Key, Key[]>();
     SQUARES.forEach((s) => {
       const ms = chessInstance.moves({ square: s, verbose: true });
       if (ms.length)
         dests.set(
-          s,
-          ms.map((m) => m.to),
+          s as Key,
+          ms.map((m) => m.to as Key),
         );
     });
     return dests;
@@ -256,7 +262,6 @@ const ChessBoard = ({
           // Wait before playing
           timeoutRef.current = window.setTimeout(() => {
             try {
-              // Ensure game didn't reset while waiting
               if (chessRef.current.isGameOver()) return;
 
               const move = chessRef.current.move(moveStr);
@@ -273,9 +278,11 @@ const ChessBoard = ({
                   chessRef.current.history(),
                   chessRef.current.pgn(),
                 );
-                isEngineMoveRef.current = true;
+
+                viewIndexRef.current = chessRef.current.history().length;
+
                 cgRef.current?.move(move.from, move.to);
-                isEngineMoveRef.current = false;
+
                 setGameUpdateTrigger((prev) => prev + 1);
 
                 if (chessRef.current.isCheckmate()) {
@@ -283,11 +290,31 @@ const ChessBoard = ({
                 } else if (chessRef.current.isDraw()) {
                   onGameOverRef.current?.("draw");
                 }
+
+                // Yield the thread for 50ms to let the engine's move render before forcing the premove animation to begin.
+                setTimeout(() => {
+                  // Ensure the game didn't end from the engine's move
+                  if (chessRef.current.isGameOver()) return;
+
+                  cgRef.current?.set({
+                    turnColor: playerColor,
+                    movable: {
+                      color: playerColor,
+                      dests: getDests(chessRef.current),
+                    },
+                  });
+
+                  if (
+                    typeof (cgRef.current as any)?.playPremove === "function"
+                  ) {
+                    (cgRef.current as any).playPremove();
+                  }
+                }, 50);
               }
             } catch (err) {
               console.error("Stockfish move error:", err);
             }
-          }, finalWait * 1000); // converting seconds to milliseconds
+          }, finalWait * 1000);
         }
       }
     };
@@ -341,6 +368,11 @@ const ChessBoard = ({
       fen: initialViewChess.fen(),
       orientation: playerColor,
       animation: { enabled: true, duration: 250 },
+      premovable: {
+        enabled: true,
+        showDests: true,
+        castle: true,
+      },
       movable: {
         color: "white",
         free: false,
@@ -348,11 +380,14 @@ const ChessBoard = ({
       },
       events: {
         move: (orig, dest) => {
-          // Skip if Stockfish is making the move, OR if the game is already over
-          if (isEngineMoveRef.current || chessRef.current.isGameOver()) return;
+          // Skip if the game is already over
+          if (chessRef.current.isGameOver()) return;
           try {
-            // If making a move in the past, safely rewind the master engine
-            if (viewIndexRef.current < chessRef.current.history().length) {
+            // Prevent rewinds during live premoves
+            if (
+              !isPlayingRef.current &&
+              viewIndexRef.current < chessRef.current.history().length
+            ) {
               const movesToUndo =
                 chessRef.current.history().length - viewIndexRef.current;
               for (let i = 0; i < movesToUndo; i++) chessRef.current.undo();
@@ -363,6 +398,7 @@ const ChessBoard = ({
               to: dest,
               promotion: "q",
             });
+
             if (move) {
               const movedColor =
                 chessRef.current.turn() === "b" ? "white" : "black";
@@ -376,6 +412,10 @@ const ChessBoard = ({
                 chessRef.current.history(),
                 chessRef.current.pgn(),
               );
+
+              // synchronously track the head
+              viewIndexRef.current = chessRef.current.history().length;
+
               setGameUpdateTrigger((prev) => prev + 1);
 
               if (chessRef.current.isCheckmate()) {
@@ -399,38 +439,48 @@ const ChessBoard = ({
   useEffect(() => {
     if (!cgRef.current) return;
 
-    // Use a temporary board for navigation so we don't wipe the master engine's comments
-    const viewChess = new Chess();
-    if (currentPgn) viewChess.loadPgn(currentPgn);
-    else if (startingFen) viewChess.load(startingFen);
+    const syncChess = new Chess();
+    if (currentPgn) syncChess.loadPgn(currentPgn);
+    else if (startingFen) syncChess.load(startingFen);
 
-    const movesToUndo = viewChess.history().length - currentViewIndex;
+    const movesToUndo = syncChess.history().length - viewIndexRef.current;
     for (let i = 0; i < Math.max(0, movesToUndo); i++) {
-      viewChess.undo();
+      syncChess.undo();
     }
+
+    const isAtLiveHead =
+      viewIndexRef.current === chessRef.current.history().length;
+    const activeChess = isAtLiveHead ? chessRef.current : syncChess;
 
     let movableColor: "white" | "black" | "both" | undefined;
+    let movableDests: Map<Key, Key[]> | undefined;
+
     if (!isPlaying) {
       movableColor = "both";
+      movableDests = getDests(activeChess);
     } else {
-      movableColor =
-        viewChess.turn() === (playerColor === "white" ? "w" : "b")
-          ? playerColor
-          : undefined;
+      movableColor = playerColor;
+      const isPlayerTurn =
+        activeChess.turn() === (playerColor === "white" ? "w" : "b");
+      movableDests = isPlayerTurn ? getDests(activeChess) : undefined;
     }
 
-    cgRef.current.set({
-      fen: viewChess.fen(),
+    const configToSet: Config = {
       orientation: playerColor,
-      lastMove: undefined,
       movable: {
         color: movableColor,
-        dests: getDests(viewChess),
+        dests: movableDests,
       },
-      turnColor: viewChess.turn() === "w" ? "white" : "black",
-    });
+      turnColor: activeChess.turn() === "w" ? "white" : "black",
+    };
 
-    onFenChange(viewChess.fen());
+    if (!isAtLiveHead) {
+      configToSet.fen = activeChess.fen();
+      configToSet.lastMove = undefined;
+    }
+
+    cgRef.current.set(configToSet);
+    onFenChange(syncChess.fen());
   }, [
     currentViewIndex,
     gameUpdateTrigger,

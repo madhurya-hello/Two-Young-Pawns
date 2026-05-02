@@ -629,7 +629,11 @@ const Home = () => {
                       : "popInText 0.4s ease-out forwards",
                   }}
                 >
-                  {gameOutcome === "win" ? "You Won" : gameOutcome === "loss" ? "You Lost" : "Game Drawn"}
+                  {gameOutcome === "win"
+                    ? "You Won"
+                    : gameOutcome === "loss"
+                      ? "You Lost"
+                      : "Game Drawn"}
                 </div>
               </div>
             </>
