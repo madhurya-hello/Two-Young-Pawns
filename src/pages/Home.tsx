@@ -26,6 +26,8 @@ const Home = () => {
   const [blackTime, setBlackTime] = useState(215999);
   const [increment, setIncrement] = useState(0);
   const prevHistoryLengthRef = useRef(0);
+  const turnStartTimeRef = useRef(Date.now());
+  const preciseClocksRef = useRef({ w: 215999, b: 215999 });
   const [gameOutcome, setGameOutcome] = useState<
     "win" | "loss" | "draw" | null
   >(null);
@@ -43,6 +45,13 @@ const Home = () => {
   const [timeControlMoveIndex, setTimeControlMoveIndex] = useState(0);
   const currentClocksRef = useRef({ wt: startTotalTime, bt: startTotalTime });
 
+  // Keep the exact clocks synced if the game is reset or loaded
+  useEffect(() => {
+    if (!isPlaying) {
+      preciseClocksRef.current = { w: whiteTime, b: blackTime };
+    }
+  }, [whiteTime, blackTime, isPlaying]);
+
   // Keep the ref synced with the live clock while playing
   useEffect(() => {
     if (isPlaying) {
@@ -51,64 +60,86 @@ const Home = () => {
   }, [whiteTime, blackTime, isPlaying]);
 
   useEffect(() => {
-    // If game resets, reset the tracker
     if (moveHistory.length === 0) {
       prevHistoryLengthRef.current = 0;
       return;
     }
 
-    // If a new move was made, apply the increment
     if (moveHistory.length > prevHistoryLengthRef.current) {
-      if (moveHistory.length % 2 === 1) {
-        setWhiteTime((prev) => prev + increment);
-      } else {
-        setBlackTime((prev) => prev + increment);
-      }
-    }
+      const now = Date.now();
+      const elapsedMs = now - turnStartTimeRef.current;
 
-    // Sync the tracker so branching doesn't break future increments
-    prevHistoryLengthRef.current = moveHistory.length;
+      // Calculate how much time the move SHOULD take
+      let enforcedTimeSpent = elapsedMs / 1000;
+      if (elapsedMs <= 300) {
+        enforcedTimeSpent = 0.5; // Premove
+      } else if (elapsedMs < 1000) {
+        enforcedTimeSpent = 1.0; // Fast human move
+      }
+
+      // The live clock already deducted 'elapsedMs'.
+      // We adjust it by the difference + add the increment.
+      const adjustment = elapsedMs / 1000 - enforcedTimeSpent + increment;
+      const isWhiteMoved = moveHistory.length % 2 === 1;
+
+      if (isWhiteMoved) {
+        preciseClocksRef.current.w += adjustment;
+        setWhiteTime(Number(preciseClocksRef.current.w.toFixed(1)));
+      } else {
+        preciseClocksRef.current.b += adjustment;
+        setBlackTime(Number(preciseClocksRef.current.b.toFixed(1)));
+      }
+
+      // Reset for the opponent's turn
+      turnStartTimeRef.current = now;
+      prevHistoryLengthRef.current = moveHistory.length;
+    }
   }, [moveHistory.length, increment]);
 
   useEffect(() => {
-    let interval: number;
+    let animationFrameId: number;
+    let lastTick = Date.now();
 
     if (isPlaying) {
-      interval = window.setInterval(() => {
+      // Mark exactly when the turn started if it's a fresh turn
+      if (moveHistory.length === prevHistoryLengthRef.current) {
+        turnStartTimeRef.current = Date.now();
+      }
+
+      const tick = () => {
+        const now = Date.now();
+        const deltaSec = (now - lastTick) / 1000;
+        lastTick = now;
+
         const isWhiteTurn = moveHistory.length % 2 === 0;
+
         if (isWhiteTurn) {
-          setWhiteTime((prev) => {
-            if (prev <= 1) {
-              setIsPlaying(false);
-              setGameOutcome(playerColor === "white" ? "loss" : "win");
-              setShowOutcomeOverlay(true);
-              currentClocksRef.current = {
-                wt: 0,
-                bt: currentClocksRef.current.bt,
-              };
-              return 0;
-            }
-            return prev - 1;
-          });
+          preciseClocksRef.current.w -= deltaSec;
+          if (preciseClocksRef.current.w <= 0) {
+            preciseClocksRef.current.w = 0;
+            setIsPlaying(false);
+            setGameOutcome(playerColor === "white" ? "loss" : "win");
+            setShowOutcomeOverlay(true);
+          }
+          setWhiteTime(Number(preciseClocksRef.current.w.toFixed(1)));
         } else {
-          setBlackTime((prev) => {
-            if (prev <= 1) {
-              setIsPlaying(false);
-              setGameOutcome(playerColor === "black" ? "loss" : "win");
-              setShowOutcomeOverlay(true);
-              currentClocksRef.current = {
-                wt: currentClocksRef.current.wt,
-                bt: 0,
-              };
-              return 0;
-            }
-            return prev - 1;
-          });
+          preciseClocksRef.current.b -= deltaSec;
+          if (preciseClocksRef.current.b <= 0) {
+            preciseClocksRef.current.b = 0;
+            setIsPlaying(false);
+            setGameOutcome(playerColor === "black" ? "loss" : "win");
+            setShowOutcomeOverlay(true);
+          }
+          setBlackTime(Number(preciseClocksRef.current.b.toFixed(1)));
         }
-      }, 1000);
+
+        if (isPlaying) animationFrameId = requestAnimationFrame(tick);
+      };
+
+      animationFrameId = requestAnimationFrame(tick);
     }
 
-    return () => window.clearInterval(interval);
+    return () => cancelAnimationFrame(animationFrameId);
   }, [isPlaying, moveHistory.length, playerColor]);
 
   useEffect(() => {
@@ -128,14 +159,21 @@ const Home = () => {
   }, [showOutcomeOverlay]);
 
   const formatTime = (seconds: number) => {
-    const h = Math.floor(seconds / 3600)
+    const fixedStr = seconds.toFixed(1);
+    const [wholeStr, decimalStr] = fixedStr.split(".");
+
+    const whole = parseInt(wholeStr, 10);
+    const h = Math.floor(whole / 3600)
       .toString()
       .padStart(2, "0");
-    const m = Math.floor((seconds % 3600) / 60)
+    const m = Math.floor((whole % 3600) / 60)
       .toString()
       .padStart(2, "0");
-    const s = (seconds % 60).toString().padStart(2, "0");
-    return `${h}:${m}:${s}`;
+    const s = (whole % 60).toString().padStart(2, "0");
+
+    return h !== "00"
+      ? `${h}:${m}:${s}.${decimalStr}`
+      : `${m}:${s}.${decimalStr}`;
   };
 
   const handleClose = () => {
