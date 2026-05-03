@@ -4,6 +4,7 @@ import ChessBoard from "../components/ChessBoard";
 import RightSideBar from "../components/RightSideBar";
 import OpponentModal from "../components/OpponentModal";
 import { Chess } from "chess.js";
+import ChatArea from "../components/ChatArea";
 
 const Home = () => {
   const [showModal, setShowModal] = useState(true);
@@ -625,17 +626,7 @@ const Home = () => {
       <div style={appContainerStyle}>
         {/* Analysis Area */}
         <div style={leftSectionStyle}>
-          <div>
-            <h2 style={{ margin: "0 0 12px 0", fontSize: "1.6rem" }}>
-              Analysis
-            </h2>
-            <div
-              style={{ opacity: 0.6, fontSize: "0.95rem", lineHeight: "1.6" }}
-            >
-              Engine evaluations and move history will appear here during your
-              match.
-            </div>
-          </div>
+          <ChatArea />
         </div>
 
         {/* Center: Board Area */}
@@ -735,7 +726,6 @@ const Home = () => {
                       fontSize: "1rem",
                       fontStyle: "normal",
                       color: "#10b981",
-                      fontWeight: "600",
                     }}
                   >
                     draw offer accepted
@@ -748,7 +738,6 @@ const Home = () => {
                       fontSize: "1rem",
                       color: "#e91f1f",
                       fontStyle: "normal",
-                      fontWeight: "600",
                     }}
                   >
                     draw offer rejected
