@@ -1,10 +1,14 @@
 import React, { useState, useRef, useEffect } from "react";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface Message {
   id: string;
   text: string;
   sender: "user" | "opponent";
 }
+
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
+const genAI = new GoogleGenerativeAI(apiKey);
 
 const ChatArea: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -13,19 +17,20 @@ const ChatArea: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-scroll to the bottom whenever messages change or typing starts
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  const handleSend = (e?: React.FormEvent) => {
+  const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputText.trim()) return;
 
-    // 1. Add user message
+    const userText = inputText.trim();
+
+    // Add user message
     const newUserMsg: Message = {
       id: Date.now().toString(),
-      text: inputText.trim(),
+      text: userText,
       sender: "user",
     };
 
@@ -36,22 +41,37 @@ const ChatArea: React.FC = () => {
       textareaRef.current.style.overflowY = "hidden";
     }
 
-    // 2. Trigger typing animation
+    // Trigger typing animation
     setIsTyping(true);
 
-    // 3. Respond after 3 seconds
-    setTimeout(() => {
-      setIsTyping(false);
-      const opponentMsg: Message = {
+    try {
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+      const result = await model.generateContent(userText);
+      const response = await result.response;
+      const text = response.text();
+
+      // Add AI response to the chat
+      const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
-        text: "sorry I am not available",
+        text: text,
         sender: "opponent",
       };
-      setMessages((prev) => [...prev, opponentMsg]);
-    }, 3000);
+      setMessages((prev) => [...prev, aiMsg]);
+    } catch (error) {
+      console.error("Error fetching from Gemini:", error);
+      // Fallback message if the API fails
+      const errorMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        text: "Sorry, I am having trouble connecting to the server right now.",
+        sender: "opponent",
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
-  // Handle 'Enter' to send, 'Shift+Enter' for new line
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -66,7 +86,6 @@ const ChatArea: React.FC = () => {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
 
-      // Show scrollbar only if the content pushes past our 120px limit
       if (textareaRef.current.scrollHeight > 120) {
         textareaRef.current.style.overflowY = "auto";
       } else {
