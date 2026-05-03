@@ -44,6 +44,17 @@ const Home = () => {
   const [startTotalTime, setStartTotalTime] = useState(215999);
   const [timeControlMoveIndex, setTimeControlMoveIndex] = useState(0);
   const currentClocksRef = useRef({ wt: startTotalTime, bt: startTotalTime });
+  const [drawOfferStatus, setDrawOfferStatus] = useState<
+    "evaluating" | "accepted" | "rejected" | null
+  >(null);
+  const [drawOfferedThisMove, setDrawOfferedThisMove] = useState(false);
+
+  // Determine if it is currently the opponent's turn
+  const isWhiteTurn = moveHistory.length % 2 === 0;
+  const isOpponentTurn =
+    isPlaying &&
+    ((playerColor === "white" && !isWhiteTurn) ||
+      (playerColor === "black" && isWhiteTurn));
 
   // Keep the exact clocks synced if the game is reset or loaded
   useEffect(() => {
@@ -158,6 +169,100 @@ const Home = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showOutcomeOverlay]);
 
+  const prevMoveCountRef = useRef(moveHistory.length);
+
+  useEffect(() => {
+    if (moveHistory.length !== prevMoveCountRef.current) {
+      prevMoveCountRef.current = moveHistory.length;
+
+      const isWhiteTurn = moveHistory.length % 2 === 0;
+      const isOppTurn =
+        isPlaying &&
+        ((playerColor === "white" && !isWhiteTurn) ||
+          (playerColor === "black" && isWhiteTurn));
+
+      if (isOppTurn) {
+        // As soon as the user plays a move, clear the "rejected" text to show "thinking..."
+        setDrawOfferStatus(null);
+      } else {
+        // A fresh turn for the user starts, allow a new draw offer
+        setDrawOfferedThisMove(false);
+      }
+    }
+  }, [moveHistory.length, isPlaying, playerColor]);
+
+  const handleResign = () => {
+    if (!isPlaying) return;
+    setIsPlaying(false);
+    setGameOutcome(playerColor === "white" ? "loss" : "win");
+    setShowOutcomeOverlay(true);
+  };
+
+  const handleDraw = () => {
+    if (drawOfferedThisMove || !isPlaying || isOpponentTurn) return;
+
+    setDrawOfferedThisMove(true);
+    setDrawOfferStatus("evaluating");
+
+    const startEvalTime = Date.now();
+    let evaluationCP = 0;
+
+    // Spin up a quick temporary worker strictly for evaluation
+    const worker = new Worker("/stockfish-18-lite-single.js");
+    worker.postMessage("uci");
+    worker.postMessage("isready");
+    worker.postMessage(`position fen ${currentFen}`);
+    worker.postMessage("go depth 14");
+
+    worker.onmessage = (e) => {
+      const msg = e.data;
+
+      if (msg.includes("score cp")) {
+        const match = msg.match(/score cp (-?\d+)/);
+        if (match) evaluationCP = parseInt(match[1], 10);
+      } else if (msg.includes("score mate")) {
+        const match = msg.match(/score mate (-?\d+)/);
+        if (match) {
+          // If mate is positive, user has forced mate. Negative means user is getting mated.
+          evaluationCP = parseInt(match[1], 10) > 0 ? 10000 : -10000;
+        }
+      }
+
+      if (msg.startsWith("bestmove")) {
+        worker.terminate();
+        const elapsed = Date.now() - startEvalTime;
+        const remainingTime = Math.max(0, 3000 - elapsed); // Enforce at least 3 seconds
+
+        setTimeout(() => {
+          let accepted = false;
+          const moveCount = Math.floor(moveHistory.length / 2);
+
+          // Evaluation logic (in order)
+          if (evaluationCP >= 300) {
+            accepted = true;
+          } else if (evaluationCP <= -300) {
+            accepted = false;
+          } else if (moveCount < 10) {
+            accepted = false;
+          } else if (moveCount > 15) {
+            accepted = true;
+          } else {
+            accepted = false;
+          }
+
+          if (accepted) {
+            setDrawOfferStatus("accepted");
+            setIsPlaying(false);
+            setGameOutcome("draw");
+            setShowOutcomeOverlay(true);
+          } else {
+            setDrawOfferStatus("rejected");
+          }
+        }, remainingTime);
+      }
+    };
+  };
+
   const formatTime = (seconds: number) => {
     const fixedStr = seconds.toFixed(1);
     const [wholeStr, decimalStr] = fixedStr.split(".");
@@ -267,6 +372,8 @@ const Home = () => {
       setBlackTime(totalSeconds);
       setStartTotalTime(totalSeconds);
       setTimeControlMoveIndex(0);
+      setDrawOfferStatus(null);
+      setDrawOfferedThisMove(false);
     }
   };
 
@@ -291,6 +398,8 @@ const Home = () => {
       handleCloseOutcome();
       setIsPlaying(false);
       setTimeControlMoveIndex(0);
+      setDrawOfferStatus(null);
+      setDrawOfferedThisMove(false);
 
       // Remount ChessBoard with the new FEN!
       setBoardKey((prev) => prev + 1);
@@ -375,6 +484,8 @@ const Home = () => {
       handleCloseOutcome();
       setTimeControlMoveIndex(0);
       setBoardKey((prev) => prev + 1);
+      setDrawOfferStatus(null);
+      setDrawOfferedThisMove(false);
     } catch (e) {
       alert("Invalid PGN file structure.");
     }
@@ -502,6 +613,15 @@ const Home = () => {
 
   return (
     <div style={screenContainerStyle}>
+      {/* keyframes for the waving dots */}
+      <style>
+        {`
+          @keyframes waveDot {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-3px); }
+          }
+        `}
+      </style>
       <div style={appContainerStyle}>
         {/* Analysis Area */}
         <div style={leftSectionStyle}>
@@ -523,7 +643,7 @@ const Home = () => {
           <div style={boardAreaStyle}>
             {/* Top Row: Opponent */}
             <div style={playerRowStyle}>
-              <div>
+              <div style={{ display: "flex", alignItems: "center" }}>
                 <span style={{ fontWeight: "600", fontSize: "1.1rem" }}>
                   {selectedOpponent ? selectedOpponent.name : "Select Opponent"}
                 </span>
@@ -536,6 +656,102 @@ const Home = () => {
                     }}
                   >
                     ({selectedOpponent.rating})
+                  </span>
+                )}
+
+                {/* Dynamic Status Text */}
+                {isOpponentTurn && !drawOfferStatus && (
+                  <span
+                    style={{
+                      marginLeft: "12px",
+                      fontSize: "1rem",
+                      color: "#e91f1f",
+                      fontStyle: "normal",
+                      display: "flex",
+                    }}
+                  >
+                    thinking
+                    <span style={{ display: "flex", marginLeft: "2px" }}>
+                      <span style={{ animation: "waveDot 1.2s infinite" }}>
+                        .
+                      </span>
+                      <span
+                        style={{
+                          animation: "waveDot 1.2s infinite",
+                          animationDelay: "0.2s",
+                        }}
+                      >
+                        .
+                      </span>
+                      <span
+                        style={{
+                          animation: "waveDot 1.2s infinite",
+                          animationDelay: "0.4s",
+                        }}
+                      >
+                        .
+                      </span>
+                    </span>
+                  </span>
+                )}
+                {drawOfferStatus === "evaluating" && (
+                  <span
+                    style={{
+                      marginLeft: "12px",
+                      fontSize: "1rem",
+                      color: "#e91f1f",
+                      fontStyle: "normal",
+                      display: "flex",
+                    }}
+                  >
+                    evaluating draw offer
+                    <span style={{ display: "flex", marginLeft: "2px" }}>
+                      <span style={{ animation: "waveDot 1.2s infinite" }}>
+                        .
+                      </span>
+                      <span
+                        style={{
+                          animation: "waveDot 1.2s infinite",
+                          animationDelay: "0.2s",
+                        }}
+                      >
+                        .
+                      </span>
+                      <span
+                        style={{
+                          animation: "waveDot 1.2s infinite",
+                          animationDelay: "0.4s",
+                        }}
+                      >
+                        .
+                      </span>
+                    </span>
+                  </span>
+                )}
+                {drawOfferStatus === "accepted" && (
+                  <span
+                    style={{
+                      marginLeft: "12px",
+                      fontSize: "1rem",
+                      fontStyle: "normal",
+                      color: "#10b981",
+                      fontWeight: "600",
+                    }}
+                  >
+                    draw offer accepted
+                  </span>
+                )}
+                {drawOfferStatus === "rejected" && (
+                  <span
+                    style={{
+                      marginLeft: "12px",
+                      fontSize: "1rem",
+                      color: "#e91f1f",
+                      fontStyle: "normal",
+                      fontWeight: "600",
+                    }}
+                  >
+                    draw offer rejected
                   </span>
                 )}
               </div>
@@ -699,6 +915,10 @@ const Home = () => {
           currentPgn={currentPgn}
           onLoadPgn={handleLoadPgn}
           playerColor={playerColor}
+          onResign={handleResign}
+          onDraw={handleDraw}
+          isOpponentTurn={isOpponentTurn}
+          drawOfferedThisMove={drawOfferedThisMove}
         />
       </div>
 

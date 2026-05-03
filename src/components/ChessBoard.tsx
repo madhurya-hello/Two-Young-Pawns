@@ -262,6 +262,7 @@ const ChessBoard = ({
           // Wait before playing
           timeoutRef.current = window.setTimeout(() => {
             try {
+              if (!isPlayingRef.current) return;
               if (chessRef.current.isGameOver()) return;
 
               const move = chessRef.current.move(moveStr);

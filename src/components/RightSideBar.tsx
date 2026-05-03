@@ -18,6 +18,10 @@ interface RightSideBarProps {
   currentPgn: string;
   onLoadPgn: (pgn: string) => void;
   playerColor: "white" | "black";
+  onResign: () => void;
+  onDraw: () => void;
+  isOpponentTurn: boolean;
+  drawOfferedThisMove: boolean;
 }
 
 const RightSideBar: React.FC<RightSideBarProps> = ({
@@ -38,6 +42,10 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
   currentPgn,
   onLoadPgn,
   playerColor,
+  onResign,
+  onDraw,
+  isOpponentTurn,
+  drawOfferedThisMove,
 }) => {
   const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
   const [hoveredMove, setHoveredMove] = useState<number | null>(null);
@@ -295,59 +303,78 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
           Flip
         </button>
 
-        <button
-          style={{
-            ...getButtonStyle("draw"),
-            flex: 1,
-            padding: "8px 4px",
-            gap: "4px",
-            fontSize: "0.75rem",
-          }}
-          onMouseEnter={() => setHoveredBtn("draw")}
-          onMouseLeave={() => setHoveredBtn(null)}
-        >
-          {/* Using text for ½ as it scales crisply */}
-          <span
-            style={{
-              ...iconStyle,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "1rem",
-              fontWeight: "bold",
-            }}
-          >
-            ½
-          </span>
-          Draw
-        </button>
+        {/* Draw Button */}
+        {(() => {
+          const canDraw = isPlaying && !isOpponentTurn && !drawOfferedThisMove;
+          return (
+            <button
+              style={{
+                ...getButtonStyle("draw"),
+                flex: 1,
+                padding: "8px 4px",
+                gap: "4px",
+                fontSize: "0.75rem",
+                opacity: canDraw ? 1 : 0.5,
+                cursor: canDraw ? "pointer" : "not-allowed",
+              }}
+              disabled={!canDraw}
+              onClick={onDraw}
+              onMouseEnter={() => canDraw && setHoveredBtn("draw")}
+              onMouseLeave={() => setHoveredBtn(null)}
+            >
+              <span
+                style={{
+                  ...iconStyle,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "1rem",
+                  fontWeight: "bold",
+                }}
+              >
+                ½
+              </span>
+              Draw
+            </button>
+          );
+        })()}
 
-        <button
-          style={{
-            ...getButtonStyle("resign"),
-            flex: 1,
-            padding: "8px 4px",
-            gap: "4px",
-            fontSize: "0.75rem",
-          }}
-          onMouseEnter={() => setHoveredBtn("resign")}
-          onMouseLeave={() => setHoveredBtn(null)}
-        >
-          <svg
-            style={iconStyle}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"
-            />
-          </svg>
-          Resign
-        </button>
+        {/* Resign Button */}
+        {(() => {
+          const canResign = isPlaying;
+          return (
+            <button
+              style={{
+                ...getButtonStyle("resign"),
+                flex: 1,
+                padding: "8px 4px",
+                gap: "4px",
+                fontSize: "0.75rem",
+                opacity: canResign ? 1 : 0.5,
+                cursor: canResign ? "pointer" : "not-allowed",
+              }}
+              disabled={!canResign}
+              onClick={onResign}
+              onMouseEnter={() => canResign && setHoveredBtn("resign")}
+              onMouseLeave={() => setHoveredBtn(null)}
+            >
+              <svg
+                style={iconStyle}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"
+                />
+              </svg>
+              Resign
+            </button>
+          );
+        })()}
       </div>
 
       {/* Row 5: PGN and FEN Input */}
