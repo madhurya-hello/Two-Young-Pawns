@@ -626,7 +626,12 @@ const Home = () => {
       <div style={appContainerStyle}>
         {/* Analysis Area */}
         <div style={leftSectionStyle}>
-          <ChatArea key={boardKey} />
+          <ChatArea
+            key={boardKey}
+            moveHistory={moveHistory}
+            currentFen={currentFen}
+            startingFen={startingFen}
+          />
         </div>
 
         {/* Center: Board Area */}

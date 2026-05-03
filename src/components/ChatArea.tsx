@@ -7,15 +7,75 @@ interface Message {
   sender: "user" | "opponent";
 }
 
+interface ChatAreaProps {
+  moveHistory: string[];
+  currentFen: string;
+  startingFen: string;
+}
+
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
 const genAI = new GoogleGenerativeAI(apiKey);
 
-const ChatArea: React.FC = () => {
+const ChatArea: React.FC<ChatAreaProps> = ({ moveHistory, currentFen, startingFen }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const openingTemplates = [
+    "We’ve entered the {opening_name}. A classical battlefield with plenty of hidden ideas. Let’s see how well you navigate it.",
+    "Ah, the {opening_name}. Solid, ambitious, and full of tactical possibilities. Things are about to get interesting.",
+    "Looks like we’re playing the {opening_name}. A favorite among aggressive players who enjoy putting pressure early.",
+    "The {opening_name} is now on the board. One inaccurate move here can completely shift the momentum.",
+    "We just stepped into the {opening_name}. This opening has challenged masters for generations — your turn now.",
+    "Interesting choice — the {opening_name}. It often leads to sharp middlegames and creative plans.",
+    "The game has transposed into the {opening_name}. Time to see whether strategy or calculation wins today.",
+    "Welcome to the {opening_name}. A deceptively simple opening that can become very dangerous very quickly.",
+    "The {opening_name} has appeared on the board. Let’s find out who understands the resulting positions better.",
+    "We’re officially in {opening_name} territory now. Every move from here starts telling a story.",
+  ];
+
+  useEffect(() => {
+    if (moveHistory.length === 10) {
+      const identifyOpening = async () => {
+        setIsTyping(true);
+        try {
+          const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+          // Hidden prompt strictly asking for the name
+          const hiddenPrompt = `Here are the first few moves of a chess game: ${moveHistory.join(" ")}. Identify the name of this opening. Reply ONLY with the exact opening name (e.g., "Sicilian Defense", "Queen's Gambit"). Do not include any punctuation, quotes, or conversational text.`;
+
+          const result = await model.generateContent(hiddenPrompt);
+          const openingName = result.response.text().trim();
+
+          // Pick a random template and insert the opening name
+          const randomTemplate =
+            openingTemplates[
+              Math.floor(Math.random() * openingTemplates.length)
+            ];
+          const finalMessageText = randomTemplate.replace(
+            "{opening_name}",
+            openingName,
+          );
+
+          const aiMsg: Message = {
+            id: Date.now().toString(),
+            text: finalMessageText,
+            sender: "opponent",
+          };
+
+          setMessages((prev) => [...prev, aiMsg]);
+        } catch (error) {
+          console.error("Error identifying opening:", error);
+        } finally {
+          setIsTyping(false);
+        }
+      };
+
+      identifyOpening();
+    }
+  }, [moveHistory.length]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -47,7 +107,20 @@ const ChatArea: React.FC = () => {
     try {
       const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-      const result = await model.generateContent(userText);
+      // Construct a hidden, context-rich prompt for Gemini
+      const movesText =
+        moveHistory.length > 0
+          ? moveHistory.join(" ")
+          : "No prior moves (started from this exact position).";
+
+      const contextualPrompt = `You are an expert chess coach and analyst. The analysis started from this position (FEN): ${startingFen} . Moves played from that starting position: ${movesText} . Current board position (FEN): ${currentFen} ;
+      
+      The user is asking you a question about the current position: "${userText}"
+      
+      Answer their question accurately based on the current FEN and move history. Keep your answer concise (maximum of 3 sentences), conversational, and helpful. Do not mention that you were given the FEN or move history, just answer the question naturally.`;
+
+      // Send the contextual prompt instead of just the userText
+      const result = await model.generateContent(contextualPrompt);
       const response = await result.response;
       const text = response.text();
 
