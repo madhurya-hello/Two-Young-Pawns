@@ -768,7 +768,6 @@ const Home = () => {
             <div style={boardContainerStyle}>
               <ChessBoard
                 key={boardKey}
-                moveHistory={moveHistory}
                 isPlaying={isPlaying}
                 playerColor={playerColor}
                 onMove={handleMove}

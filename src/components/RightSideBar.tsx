@@ -69,7 +69,6 @@ const RightSideBar: React.FC<RightSideBarProps> = ({
 
   const getButtonStyle = (
     id: string,
-    isPrimary = false,
   ): React.CSSProperties => ({
     width: "100%",
     padding: "12px 16px",

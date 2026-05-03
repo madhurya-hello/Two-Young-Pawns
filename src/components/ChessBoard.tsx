@@ -10,7 +10,6 @@ import "chessground/assets/chessground.brown.css";
 import "chessground/assets/chessground.cburnett.css";
 
 interface ChessBoardProps {
-  moveHistory: string[];
   onMove: (history: string[], pgn: string) => void;
   currentViewIndex: number;
   onGameOver?: (outcome: "win" | "loss" | "draw") => void;
@@ -26,7 +25,6 @@ interface ChessBoardProps {
 }
 
 const ChessBoard = ({
-  moveHistory,
   onMove,
   currentViewIndex,
   onGameOver,
@@ -43,7 +41,6 @@ const ChessBoard = ({
   const boardRef = useRef<HTMLDivElement>(null);
   const cgRef = useRef<Api | null>(null);
   const workerRef = useRef<Worker | null>(null);
-  const isEngineMoveRef = useRef(false);
 
   // Safely initialize with PGN if it exists so we don't lose comments on mount
   const chessRef = useRef<Chess>(new Chess());
